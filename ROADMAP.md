@@ -17,12 +17,13 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] `pnpm install` + validación de `turbo.json` (dry-run).
 - [x] Aprobación del usuario para pasar a Fase 2.
 
-## Fase 2 — Capa de base de datos *(en curso)*
+## Fase 2 — Capa de base de datos *(completa)*
 - [x] `packages/database/prisma/schema.prisma`: `User`, multi-tenancy (`Classroom`/`ClassroomMembership`), `Course`/`Chapter`/`Level`, `Lab`/`LabAttempt`, `Assessment`/`AssessmentAttempt`, gamificación (`XPTransaction`, `DailyQuest`/`DailyQuestProgress`, `Achievement`/`AchievementLog`, `LeaderboardEntry`), analítica (`UserActivityLog`, `TimeSpentPerModule`).
 - [x] Índices y cascadas explícitas por relación.
 - [x] `prisma validate` + `prisma generate` + build/typecheck/smoke-test locales (sin tocar la DB real).
 - [x] Seed transaccional mínimo (curso base + 8 capítulos de Tanenbaum, contenido real de `CLAUDE.md` §6).
-- [ ] `prisma migrate dev` inicial contra Supabase (pendiente de aprobación — acción sobre infraestructura real).
+- [x] `prisma migrate dev --name init` aplicada contra Supabase; seed ejecutado y verificado con una lectura real.
+- [ ] Aprobación del usuario para pasar a Fase 3.
 
 ## Fase 3 — Paquete compartido y dominio
 - [ ] `packages/shared`: value objects de networking (`IPAddress`, `SubnetMask`, `Port`, `MacAddress`, `CIDR`) con validación Zod fiel al protocolo real.
