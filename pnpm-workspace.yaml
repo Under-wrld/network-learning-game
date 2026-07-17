@@ -1,0 +1,5 @@
+packages:
+  # Aplicaciones desplegables de forma independiente
+  - 'apps/**'
+  # Paquetes de configuración, diseño, base de datos y simulaciones compartidas
+  - 'packages/**'

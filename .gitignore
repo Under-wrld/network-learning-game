@@ -1,0 +1,45 @@
+CLAUDE.md
+
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Builds
+dist/
+build/
+.next/
+.turbo/
+out/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+pnpm-debug.log*
+npm-debug.log*
+
+# Cache
+.cache/
+.eslintcache
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Prisma / DB local
+*.sqlite
+*.db
+
+# Docker
+docker/volumes/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

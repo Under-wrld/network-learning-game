@@ -1,0 +1,39 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: 🔍 Ejecutar Lint
+        run: pnpm lint --if-present
+
+      - name: 🧪 Ejecutar Tests
+        run: pnpm test --if-present
+
+      - name: 🏗️ Ejecutar Build
+        run: pnpm build --if-present
+
+      - name: 🚀 Preparar Deploy (Vercel)
+        run: echo "Entorno validado. Listo para desplegar en Vercel CLI."
