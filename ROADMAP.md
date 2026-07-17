@@ -7,21 +7,22 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] Reconciliación de naming (`apps/frontend` + `apps/backend`, `packages/ui|game-engine|simulations`).
 - [x] `CLAUDE.md` trackeado en git.
 
-## Fase 1 — Inicialización PRD y Monorepo *(en curso)*
+## Fase 1 — Inicialización PRD y Monorepo *(completa)*
 - [x] `package.json` raíz (`private`, scripts, `turbo` como devDependency).
 - [x] `turbo.json` (pipeline build/dev/lint/test/typecheck/format).
 - [x] `tsconfig.json` raíz.
 - [x] `.env.example` / `.env` con variables de Supabase + Prisma (sin secretos).
 - [x] CI alineado a la versión de pnpm pineada en el repo.
 - [x] `docs/PRD.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `DECISIONS.md`, `CONTRIBUTING.md`.
-- [ ] `pnpm install` + validación de `turbo.json` (dry-run).
-- [ ] Aprobación del usuario para pasar a Fase 2.
+- [x] `pnpm install` + validación de `turbo.json` (dry-run).
+- [x] Aprobación del usuario para pasar a Fase 2.
 
-## Fase 2 — Capa de base de datos
-- [ ] `packages/database/prisma/schema.prisma`: `User`, `Course`/`Chapter`/`Level`, `Lab`/`Simulation`, gamificación (`DailyQuest`, `Leaderboard`, `AchievementLog`, `XPTransaction`), analítica (`UserActivityLog`, `AssessmentAttempt`, `TimeSpentPerModule`).
-- [ ] Índices y cascadas explícitas.
-- [ ] Conexión a Supabase (`DATABASE_URL`/`DIRECT_URL` reales, provistos por el usuario en `.env`).
-- [ ] `prisma migrate dev` inicial + seed transaccional mínimo.
+## Fase 2 — Capa de base de datos *(en curso)*
+- [x] `packages/database/prisma/schema.prisma`: `User`, multi-tenancy (`Classroom`/`ClassroomMembership`), `Course`/`Chapter`/`Level`, `Lab`/`LabAttempt`, `Assessment`/`AssessmentAttempt`, gamificación (`XPTransaction`, `DailyQuest`/`DailyQuestProgress`, `Achievement`/`AchievementLog`, `LeaderboardEntry`), analítica (`UserActivityLog`, `TimeSpentPerModule`).
+- [x] Índices y cascadas explícitas por relación.
+- [x] `prisma validate` + `prisma generate` + build/typecheck/smoke-test locales (sin tocar la DB real).
+- [x] Seed transaccional mínimo (curso base + 8 capítulos de Tanenbaum, contenido real de `CLAUDE.md` §6).
+- [ ] `prisma migrate dev` inicial contra Supabase (pendiente de aprobación — acción sobre infraestructura real).
 
 ## Fase 3 — Paquete compartido y dominio
 - [ ] `packages/shared`: value objects de networking (`IPAddress`, `SubnetMask`, `Port`, `MacAddress`, `CIDR`) con validación Zod fiel al protocolo real.

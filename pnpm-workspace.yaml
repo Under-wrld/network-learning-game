@@ -3,3 +3,7 @@ packages:
   - 'apps/**'
   # Paquetes de configuración, diseño, base de datos y simulaciones compartidas
   - 'packages/**'
+allowBuilds:
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true

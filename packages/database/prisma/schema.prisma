@@ -1,0 +1,411 @@
+// Prisma schema — network-learning-game
+// Ver ARCHITECTURE.md §5 y DECISIONS.md para las decisiones detrás de este modelo.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+// En Prisma 7, `directUrl` ya no se declara en el schema: toda URL de
+// conexión vive en prisma.config.ts. Ver ese archivo para el porqué de usar
+// DIRECT_URL ahí (CLI/migraciones) y DATABASE_URL en el cliente runtime.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  PASSED
+  FAILED
+}
+
+enum AssessmentType {
+  QUIZ
+  OPEN_CHALLENGE
+}
+
+enum LeaderboardScope {
+  GLOBAL
+  CLASSROOM
+}
+
+// ---------------------------------------------------------------------------
+// Identidad y multi-tenancy
+// ---------------------------------------------------------------------------
+
+/// Perfil de aplicación, sincronizado 1:1 con Supabase Auth (auth.users.id).
+/// La identidad primaria y el password hash viven en el esquema `auth` de
+/// Supabase; esta tabla solo persiste rol, progreso y metadatos de producto.
+model User {
+  id             String    @id @db.Uuid
+  email          String    @unique
+  displayName    String?   @map("display_name")
+  avatarUrl      String?   @map("avatar_url")
+  role           Role      @default(STUDENT)
+  totalXp        Int       @default(0) @map("total_xp")
+  currentStreak  Int       @default(0) @map("current_streak")
+  longestStreak  Int       @default(0) @map("longest_streak")
+  lastActivityAt DateTime? @map("last_activity_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  classroomsTaught     Classroom[]           @relation("ClassroomTeacher")
+  classroomMemberships ClassroomMembership[]
+  enrollments          CourseEnrollment[]
+  labAttempts          LabAttempt[]
+  assessmentAttempts   AssessmentAttempt[]
+  xpTransactions       XPTransaction[]
+  dailyQuestProgress   DailyQuestProgress[]
+  achievementLogs      AchievementLog[]
+  leaderboardEntries   LeaderboardEntry[]
+  activityLogs         UserActivityLog[]
+  timeSpentEntries     TimeSpentPerModule[]
+
+  @@index([totalXp])
+  @@map("users")
+}
+
+/// Un aula/tenant administrado por un docente. Estudiantes se unen vía joinCode.
+model Classroom {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  joinCode  String   @unique @map("join_code")
+  teacherId String   @map("teacher_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  teacher            User                  @relation("ClassroomTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  members            ClassroomMembership[]
+  enrollments        CourseEnrollment[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([teacherId])
+  @@map("classrooms")
+}
+
+/// Relación estudiante ↔ aula (many-to-many con metadata de ingreso).
+model ClassroomMembership {
+  id          String   @id @default(uuid()) @db.Uuid
+  classroomId String   @map("classroom_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, userId])
+  @@index([userId])
+  @@map("classroom_memberships")
+}
+
+// ---------------------------------------------------------------------------
+// Currículo (taxonomía Tanenbaum — ver CLAUDE.md §6)
+// ---------------------------------------------------------------------------
+
+model Course {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  title       String
+  description String
+  order       Int      @default(0)
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  chapters    Chapter[]
+  enrollments CourseEnrollment[]
+
+  @@map("courses")
+}
+
+/// `tanenbaumChapter` mapea al capítulo 1–8 de Computer Networks 5th Ed.
+/// cuando el capítulo corresponde 1:1; queda nulo para contenido propio.
+model Chapter {
+  id               String   @id @default(uuid()) @db.Uuid
+  courseId         String   @map("course_id") @db.Uuid
+  title            String
+  description      String
+  tanenbaumChapter Int?     @map("tanenbaum_chapter")
+  order            Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  course Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  levels Level[]
+
+  @@unique([courseId, order])
+  @@index([courseId])
+  @@map("chapters")
+}
+
+model Level {
+  id          String   @id @default(uuid()) @db.Uuid
+  chapterId   String   @map("chapter_id") @db.Uuid
+  title       String
+  description String
+  order       Int      @default(0)
+  xpReward    Int      @default(0) @map("xp_reward")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  chapter          Chapter              @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  labs             Lab[]
+  assessments      Assessment[]
+  timeSpentEntries TimeSpentPerModule[]
+
+  @@unique([chapterId, order])
+  @@index([chapterId])
+  @@map("levels")
+}
+
+model CourseEnrollment {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  courseId    String    @map("course_id") @db.Uuid
+  classroomId String?   @map("classroom_id") @db.Uuid
+  enrolledAt  DateTime  @default(now()) @map("enrolled_at")
+  completedAt DateTime? @map("completed_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  classroom Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([classroomId])
+  @@map("course_enrollments")
+}
+
+// ---------------------------------------------------------------------------
+// Laboratorios, simuladores y evaluaciones
+// ---------------------------------------------------------------------------
+
+/// `simulatorKey` identifica qué motor determinista del frontend
+/// (packages/game-engine | packages/simulations) debe cargarse para este lab.
+model Lab {
+  id                 String   @id @default(uuid()) @db.Uuid
+  levelId            String   @map("level_id") @db.Uuid
+  title              String
+  description        String
+  simulatorKey       String   @map("simulator_key")
+  initialState       Json     @map("initial_state") @db.JsonB
+  validationCriteria Json     @map("validation_criteria") @db.JsonB
+  maxXp              Int      @default(0) @map("max_xp")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  level    Level        @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  attempts LabAttempt[]
+
+  @@index([levelId])
+  @@map("labs")
+}
+
+/// `state` es el snapshot final (o firmado por el cliente) que el motor
+/// determinista del backend valida contra Lab.validationCriteria.
+model LabAttempt {
+  id          String        @id @default(uuid()) @db.Uuid
+  labId       String        @map("lab_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  state       Json          @db.JsonB
+  status      AttemptStatus @default(IN_PROGRESS)
+  score       Int?
+  xpAwarded   Int           @default(0) @map("xp_awarded")
+  startedAt   DateTime      @default(now()) @map("started_at")
+  submittedAt DateTime?     @map("submitted_at")
+
+  lab  Lab  @relation(fields: [labId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([labId])
+  @@index([userId, startedAt])
+  @@map("lab_attempts")
+}
+
+model Assessment {
+  id           String         @id @default(uuid()) @db.Uuid
+  levelId      String         @map("level_id") @db.Uuid
+  type         AssessmentType @default(QUIZ)
+  title        String
+  questions    Json           @db.JsonB
+  passingScore Int            @map("passing_score")
+  maxXp        Int            @default(0) @map("max_xp")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  level    Level               @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  attempts AssessmentAttempt[]
+
+  @@index([levelId])
+  @@map("assessments")
+}
+
+model AssessmentAttempt {
+  id           String        @id @default(uuid()) @db.Uuid
+  assessmentId String        @map("assessment_id") @db.Uuid
+  userId       String        @map("user_id") @db.Uuid
+  answers      Json          @db.JsonB
+  score        Int?
+  status       AttemptStatus @default(IN_PROGRESS)
+  startedAt    DateTime      @default(now()) @map("started_at")
+  submittedAt  DateTime?     @map("submitted_at")
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([userId, startedAt])
+  @@map("assessment_attempts")
+}
+
+// ---------------------------------------------------------------------------
+// Gamificación
+// ---------------------------------------------------------------------------
+
+/// Historial inmutable de movimientos de XP; User.totalXp es la suma
+/// materializada, actualizada por la Application layer en la misma
+/// transacción que inserta cada XPTransaction.
+model XPTransaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  amount     Int
+  reason     String
+  sourceType String   @map("source_type")
+  sourceId   String?  @map("source_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("xp_transactions")
+}
+
+model DailyQuest {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  description String
+  xpReward    Int      @map("xp_reward")
+  criteria    Json     @db.JsonB
+  activeDate  DateTime @map("active_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  progress DailyQuestProgress[]
+
+  @@index([activeDate])
+  @@map("daily_quests")
+}
+
+model DailyQuestProgress {
+  id           String    @id @default(uuid()) @db.Uuid
+  dailyQuestId String    @map("daily_quest_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  progress     Json      @db.JsonB
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  dailyQuest DailyQuest @relation(fields: [dailyQuestId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dailyQuestId, userId])
+  @@index([userId])
+  @@map("daily_quest_progress")
+}
+
+/// `triggerCriteria` es evaluado por el evaluador multi-trigger de logros
+/// (Fase 4, módulo Gamification) contra XPTransaction/LabAttempt/streaks.
+model Achievement {
+  id              String   @id @default(uuid()) @db.Uuid
+  key             String   @unique
+  title           String
+  description     String
+  iconUrl         String?  @map("icon_url")
+  triggerType     String   @map("trigger_type")
+  triggerCriteria Json     @map("trigger_criteria") @db.JsonB
+  xpReward        Int      @default(0) @map("xp_reward")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  logs AchievementLog[]
+
+  @@map("achievements")
+}
+
+model AchievementLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  achievementId String   @map("achievement_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  unlockedAt    DateTime @default(now()) @map("unlocked_at")
+
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([achievementId, userId])
+  @@index([userId])
+  @@map("achievement_logs")
+}
+
+/// Snapshot cacheado para lecturas rápidas de leaderboard. Se recalcula de
+/// forma asíncrona (delete-then-insert por scope) a partir de User.totalXp;
+/// no lleva @@unique porque un scope GLOBAL no tiene classroomId y Postgres
+/// no trata NULL como igual a sí mismo en constraints únicos — la unicidad
+/// la garantiza el job de recomputo, no la base de datos.
+model LeaderboardEntry {
+  id          String           @id @default(uuid()) @db.Uuid
+  scope       LeaderboardScope @default(GLOBAL)
+  classroomId String?          @map("classroom_id") @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  xp          Int
+  rank        Int
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  classroom Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([scope, classroomId, rank])
+  @@index([userId])
+  @@map("leaderboard_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Analítica
+// ---------------------------------------------------------------------------
+
+/// Telemetría genérica de producto. También alimenta el contrato del Tutor IA
+/// (ver ARCHITECTURE.md §7) junto con AssessmentAttempt.
+model UserActivityLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  action    String
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_activity_logs")
+}
+
+model TimeSpentPerModule {
+  id      String   @id @default(uuid()) @db.Uuid
+  userId  String   @map("user_id") @db.Uuid
+  levelId String   @map("level_id") @db.Uuid
+  date    DateTime @db.Date
+  seconds Int      @default(0)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, levelId, date])
+  @@index([levelId])
+  @@map("time_spent_per_module")
+}

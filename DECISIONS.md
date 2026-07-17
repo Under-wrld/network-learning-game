@@ -29,3 +29,26 @@ Registro de decisiones arquitectónicas (ADR ligero). Cada entrada: fecha, decis
 **Alternativas consideradas**: `CLAUDE.md` §4 módulo 10 dejaba abierta la opción "Auth.js o Supabase Auth".
 
 **Motivo**: el usuario ya cuenta con cuenta y proyecto Supabase provisionados. `DATABASE_URL`/`DIRECT_URL` en `.env.example` se documentaron para el patrón de conexión de Supabase (pooler pgbouncer en runtime, conexión directa para migraciones).
+
+## 2026-07-17 — `User` sin `passwordHash`, pese a que `CLAUDE.md` §3 lo lista
+
+**Decisión**: el modelo `User` de Prisma no incluye un campo `passwordHash`. `User.id` es un `Uuid` sin `@default`, que la Application layer (Fase 4, módulo Auth) debe poblar con el mismo `id` que Supabase asigna en `auth.users` al registrar la cuenta.
+
+**Alternativas consideradas**: agregar `passwordHash` tal como lo enumera literalmente `CLAUDE.md` §3.
+
+**Motivo**: esa lista de campos en `CLAUDE.md` fue escrita cuando la elección de auth (Auth.js vs. Supabase Auth) seguía abierta. Ya decidido Supabase Auth (entrada anterior), el password hash real vive en el esquema `auth` de Supabase, gestionado por Supabase — duplicarlo en `public.users` crearía una segunda fuente de verdad de credenciales que nadie mantiene ni rota, es decir, un riesgo de seguridad sin beneficio. No se mapeó `auth.users` vía `multiSchema` de Prisma por ser una tabla interna de Supabase fuera de nuestro control de esquema; la sincronización de `id`/`email`/`role` es responsabilidad explícita del módulo `Auth` en Fase 4.
+
+## 2026-07-17 — Prisma 7: `prisma.config.ts` obligatorio y cliente basado en driver adapters
+
+**Decisión**: se usa Prisma `7.8.0`, cuya arquitectura difiere de forma importante de versiones anteriores (5.x/6.x):
+- La URL de conexión para el CLI (`migrate`, `validate`, `studio`) vive en `packages/database/prisma.config.ts`, no en `schema.prisma`. El campo `datasource.directUrl` fue removido del lenguaje de schema; solo queda `url` (mapeado a `DIRECT_URL`, la conexión sin pgbouncer que las migraciones necesitan).
+- El generador de cliente es `"prisma-client"` (no el legacy `"prisma-client-js"`), con `output = "../generated/prisma"` — emite TypeScript fuente, no JS pre-compilado, así que `packages/database/tsconfig.json` compila explícitamente tanto `src/**` como `generated/**`.
+- `PrismaClient` ya no acepta una connection string directa ni `datasources.db.url`: exige un **driver adapter**. Se usa `@prisma/adapter-pg` + `pg`, instanciado con `DATABASE_URL` (pooled) en `src/index.ts`.
+
+**Motivo**: verificado empíricamente contra la CLI real (no supuesto) — `prisma validate` rechazó `directUrl` en el schema con un error explícito, y los tipos de `@prisma/client`/`internal/prismaNamespace.ts` confirman que `PrismaClientOptions` es una unión discriminada `{ adapter } | { accelerateUrl }`, sin tercera opción. Cualquier código futuro (Fase 4, NestJS) que instancie `PrismaClient` directamente debe seguir el mismo patrón de `src/index.ts`, no ejemplos de Prisma 5/6 de la documentación general.
+
+## 2026-07-17 — Multi-tenancy (`Classroom`) y `LeaderboardEntry` como caché, no fuente de verdad
+
+**Decisión**: se agregaron `Classroom` y `ClassroomMembership` (no mencionados explícitamente en `CLAUDE.md` §3) para soportar "aulas" — requerido por el módulo 11 (perfiles multi-tenant) y el módulo 16 (leaderboard "global/por aula"). `LeaderboardEntry` es una tabla de snapshot/caché sin `@@unique` sobre `(scope, classroomId, userId)`: Postgres no trata `NULL` como igual a sí mismo en constraints únicos, así que un `@@unique` con `classroomId` nulo (caso `GLOBAL`) no habría prevenido duplicados. La unicidad real la garantiza el job de recomputo (delete-then-insert por scope), documentado como comentario en el schema.
+
+**Motivo**: cubrir el requisito de multi-tenancy y leaderboards por aula del PRD sin introducir una constraint de base de datos que no puede expresar correctamente la semántica deseada.
