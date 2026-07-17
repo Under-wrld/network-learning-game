@@ -1,20 +1,30 @@
 {
   "name": "network-learning-game",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
+  "private": true,
+  "description": "Plataforma web gamificada de nivel producción para aprender Redes de Computadoras I, alineada con Computer Networks 5th Edition (Tanenbaum & Wetherall).",
   "license": "ISC",
+  "type": "module",
+  "packageManager": "pnpm@11.13.1",
+  "engines": {
+    "node": ">=22"
+  },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "^11.13.1",
+      "version": "11.13.1",
       "onFail": "download"
     }
   },
-  "type": "module"
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "format": "turbo run format"
+  },
+  "devDependencies": {
+    "turbo": "2.10.5"
+  }
 }

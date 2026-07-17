@@ -19,21 +19,22 @@ jobs:
           node-version: 22
 
       - name: Instalar pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
+        uses: pnpm/action-setup@v4
 
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
       - name: 🔍 Ejecutar Lint
-        run: pnpm lint --if-present
+        run: pnpm lint
+
+      - name: 🔎 Ejecutar Typecheck
+        run: pnpm typecheck
 
       - name: 🧪 Ejecutar Tests
-        run: pnpm test --if-present
+        run: pnpm test
 
       - name: 🏗️ Ejecutar Build
-        run: pnpm build --if-present
+        run: pnpm build
 
       - name: 🚀 Preparar Deploy (Vercel)
         run: echo "Entorno validado. Listo para desplegar en Vercel CLI."
