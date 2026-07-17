@@ -47,6 +47,20 @@ Registro de decisiones arquitectónicas (ADR ligero). Cada entrada: fecha, decis
 
 **Motivo**: verificado empíricamente contra la CLI real (no supuesto) — `prisma validate` rechazó `directUrl` en el schema con un error explícito, y los tipos de `@prisma/client`/`internal/prismaNamespace.ts` confirman que `PrismaClientOptions` es una unión discriminada `{ adapter } | { accelerateUrl }`, sin tercera opción. Cualquier código futuro (Fase 4, NestJS) que instancie `PrismaClient` directamente debe seguir el mismo patrón de `src/index.ts`, no ejemplos de Prisma 5/6 de la documentación general.
 
+## 2026-07-17 — `packages/shared` no depende de `@prisma/client`
+
+**Decisión**: `packages/shared/src/enums` redefine `Role`, `AttemptStatus`, `AssessmentType` y `LeaderboardScope` como Zod enums propios, en vez de reexportar los enums generados por Prisma (`packages/database/generated/prisma`).
+
+**Alternativas consideradas**: importar y reexportar los enums de `@prisma/client` directamente desde `packages/shared`, evitando duplicación.
+
+**Motivo**: `packages/shared` lo consume tanto `apps/backend` como `apps/frontend`. El cliente de Prisma 7 (`@prisma/client` + `@prisma/adapter-pg`) incluye binarios/engines nativos y código exclusivo de Node — filtrarlo a un bundle de navegador vía una dependencia transitiva de `packages/shared` rompería el build de Next.js o infllaría el bundle innecesariamente. El costo es que la Fase 4 (capa de infraestructura del backend) debe mapear explícitamente entre los enums de Prisma y los de `packages/shared` en el límite del repositorio — documentado como comentario en `packages/shared/src/enums/domain-enums.ts`.
+
+## 2026-07-17 — Tests Vitest en `packages/shared` antes del módulo 22 formal
+
+**Decisión**: se agregó Vitest y una suite de 83 tests para los value objects de networking en Fase 3, aunque `CLAUDE.md` lista "Tests unitarios y de componentes (Vitest)" como módulo 22, más adelante en el roadmap.
+
+**Motivo**: estos value objects (parsing IPv4/IPv6, aritmética de subnetting, clasificación de MAC) son lógica de dominio pura y determinista — exactamente el tipo de código donde `CLAUDE.md` exige "validación estricta fiel a su contraparte real". La única forma de demostrar esa fidelidad (y no solo afirmarla) es contra vectores de prueba reales de RFC, así que se testearon en el momento en que se escribieron en vez de diferir a un módulo de testing posterior. El módulo 22 seguirá cubriendo el resto del monorepo (componentes, servicios NestJS) a medida que existan.
+
 ## 2026-07-17 — Multi-tenancy (`Classroom`) y `LeaderboardEntry` como caché, no fuente de verdad
 
 **Decisión**: se agregaron `Classroom` y `ClassroomMembership` (no mencionados explícitamente en `CLAUDE.md` §3) para soportar "aulas" — requerido por el módulo 11 (perfiles multi-tenant) y el módulo 16 (leaderboard "global/por aula"). `LeaderboardEntry` es una tabla de snapshot/caché sin `@@unique` sobre `(scope, classroomId, userId)`: Postgres no trata `NULL` como igual a sí mismo en constraints únicos, así que un `@@unique` con `classroomId` nulo (caso `GLOBAL`) no habría prevenido duplicados. La unicidad real la garantiza el job de recomputo (delete-then-insert por scope), documentado como comentario en el schema.

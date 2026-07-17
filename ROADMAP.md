@@ -23,11 +23,16 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] `prisma validate` + `prisma generate` + build/typecheck/smoke-test locales (sin tocar la DB real).
 - [x] Seed transaccional mínimo (curso base + 8 capítulos de Tanenbaum, contenido real de `CLAUDE.md` §6).
 - [x] `prisma migrate dev --name init` aplicada contra Supabase; seed ejecutado y verificado con una lectura real.
-- [ ] Aprobación del usuario para pasar a Fase 3.
+- [x] Aprobación del usuario para pasar a Fase 3.
 
-## Fase 3 — Paquete compartido y dominio
-- [ ] `packages/shared`: value objects de networking (`IPAddress`, `SubnetMask`, `Port`, `MacAddress`, `CIDR`) con validación Zod fiel al protocolo real.
-- [ ] DTOs de request/response compartidos entre frontend y backend.
+## Fase 3 — Paquete compartido y dominio *(completa)*
+- [x] `packages/shared/src/network`: `Ipv4Address`, `Ipv6Address`, `SubnetMask`, `Cidr`, `Port`, `MacAddress` — cada uno con Zod schema + funciones puras (conversión, clasificación RFC) fieles al protocolo real.
+- [x] `packages/shared/src/constants`: tabla de puertos bien conocidos (IANA).
+- [x] `packages/shared/src/enums`: `Role`, `AttemptStatus`, `AssessmentType`, `LeaderboardScope` — independientes de `@prisma/client` a propósito (ver `DECISIONS.md`).
+- [x] `packages/shared/src/dto`: DTOs Zod de `User`, `Classroom`, `Course/Chapter/Level`, `Lab`, `Assessment`, gamificación.
+- [x] 83 tests Vitest sobre los value objects de red, con vectores de RFC reales (RFC 1918, 1122, 3927, 5771, 3021, 5952) — corridos y en verde.
+- [x] Build/typecheck/test validados desde la raíz vía Turborepo.
+- [ ] Aprobación del usuario para pasar a Fase 4.
 
 ## Fase 4 — Backend NestJS (módulo por módulo)
 - [ ] `Auth` (Supabase Auth guard + sincronización de rol).
