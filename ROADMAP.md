@@ -32,14 +32,17 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] `packages/shared/src/dto`: DTOs Zod de `User`, `Classroom`, `Course/Chapter/Level`, `Lab`, `Assessment`, gamificación.
 - [x] 83 tests Vitest sobre los value objects de red, con vectores de RFC reales (RFC 1918, 1122, 3927, 5771, 3021, 5952) — corridos y en verde.
 - [x] Build/typecheck/test validados desde la raíz vía Turborepo.
-- [ ] Aprobación del usuario para pasar a Fase 4.
+- [x] Aprobación del usuario para pasar a Fase 4.
 
 ## Fase 4 — Backend NestJS (módulo por módulo)
-- [ ] `Auth` (Supabase Auth guard + sincronización de rol).
+- [x] Setup base de `apps/backend`: NestJS 11 en ESM, validación de env con Zod al bootstrap, `ConfigModule` apuntando al `.env` raíz.
+- [x] `Auth` — Clean Architecture (domain/application/infrastructure): verificación JWT (HS256, `SUPABASE_JWT_SECRET`), sincronización de perfil (`upsert` en `public.users`), guard + decorator `@CurrentUser()`, endpoint `GET /auth/me`.
+  - [x] 12 tests Vitest sin mocks: crypto real (firma/verificación JWT), integración contra Supabase real (repositorio), e2e HTTP real contra la app completa. Todos verificados limpiando sus datos de prueba (0 usuarios residuales tras la corrida).
+  - [ ] Smoke test contra un token *realmente* emitido por Supabase — pendiente de `SUPABASE_JWT_SECRET` real en `.env` (los tests actuales usan un secreto de prueba controlado, no el del proyecto).
 - [ ] `User` (perfil, XP, badges, streak).
 - [ ] `Course/Gamification` (cursos, capítulos, niveles, quests, leaderboard).
 - [ ] `Simulator Engine` (validación server-side de laboratorios).
-- [ ] Tests unitarios Vitest por servicio (`pnpm --filter backend test`).
+- [ ] Aprobación del usuario para pasar al módulo `User`.
 
 ## Fase 5 — Frontend Next.js y motor de simuladores
 - [ ] Layouts, providers, Zustand store base.

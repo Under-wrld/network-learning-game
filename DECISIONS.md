@@ -65,4 +65,30 @@ Registro de decisiones arquitectónicas (ADR ligero). Cada entrada: fecha, decis
 
 **Decisión**: se agregaron `Classroom` y `ClassroomMembership` (no mencionados explícitamente en `CLAUDE.md` §3) para soportar "aulas" — requerido por el módulo 11 (perfiles multi-tenant) y el módulo 16 (leaderboard "global/por aula"). `LeaderboardEntry` es una tabla de snapshot/caché sin `@@unique` sobre `(scope, classroomId, userId)`: Postgres no trata `NULL` como igual a sí mismo en constraints únicos, así que un `@@unique` con `classroomId` nulo (caso `GLOBAL`) no habría prevenido duplicados. La unicidad real la garantiza el job de recomputo (delete-then-insert por scope), documentado como comentario en el schema.
 
+## 2026-07-17 — `apps/backend` es ESM, no CommonJS (contra la convención más común de NestJS)
+
+**Decisión**: `apps/backend` usa `"type": "module"` + `module`/`moduleResolution: "NodeNext"`, igual que `packages/database` y `packages/shared`, en vez del CommonJS que la mayoría de proyectos NestJS usa por defecto.
+
+**Alternativas consideradas**: CommonJS (`module: "CommonJS"`), apoyándose en que Node 22+/24 soporta `require()` síncrono de paquetes ESM sin top-level await — se verificó empíricamente que esto funciona a nivel de Node runtime.
+
+**Motivo**: aunque Node permite `require(esm)` en runtime, el checker de TypeScript en modo `Node16`/`NodeNext` (obligatorio en TS 7, ver entrada siguiente) rechaza en tiempo de compilación cualquier import de **valor** (no solo de tipo) desde un archivo CommonJS hacia un paquete ESM puro — error TS1479, sin importar que Node lo soportaría en runtime. Como `apps/backend` necesita importar valores reales de `@network-learning-game/database` (`prisma`) y `@network-learning-game/shared`, no solo tipos, la dirección CJS→ESM queda bloqueada por el compilador. La dirección inversa (ESM importando CommonJS, como `@nestjs/core`) siempre fue soportada sin fricción por Node y TypeScript. Se verificó con un smoke test real (`require()` de ambos paquetes desde un script `.cjs`) antes de decidir, y se optó por evitar la fricción por completo en vez de pelear contra el checker.
+
+## 2026-07-17 — TypeScript 7: `moduleResolution: "node"/"node10"` fue removido
+
+**Decisión**: ningún `tsconfig.json` del repo usa `moduleResolution: "node"` (el valor clásico). Los valores válidos en TS 7.0.2 son únicamente `node16`, `nodenext` y `bundler` — confirmado con `tsc --help --all` tras un error real (TS5108) al intentar usar `"Node"`. Además, `module: "Node16"`/`"NodeNext"` exige que `moduleResolution` tenga el mismo valor (TS5110); no se pueden mezclar `module: "CommonJS"` con `moduleResolution: "Node16"`.
+
+**Motivo**: verificado contra el compilador real instalado, no contra documentación potencialmente desactualizada — el mismo patrón que las sorpresas de Prisma 7 y Zod 4 (ver entradas anteriores). Cualquier tsconfig nuevo en el repo debe usar `nodenext` (paquetes ESM) o `bundler` (código consumido por un bundler, p. ej. Next.js en Fase 5), nunca `node`/`node10`.
+
+## 2026-07-17 — `prisma` en `packages/database` pasó de instanciación eager a un Proxy perezoso
+
+**Decisión**: `packages/database/src/index.ts` ya no construye `PrismaClient` al importar el módulo (`export const prisma = createPrismaClient()`); ahora exporta un `Proxy` que difiere la construcción real hasta el primer acceso a una propiedad (p. ej. `prisma.user.findMany`).
+
+**Motivo**: bug real descubierto al arrancar `apps/backend` — NestJS's `ConfigModule.forRoot()` carga el `.env` raíz recién durante el bootstrap del `AppModule`, pero el import de `AppModule` en `main.ts` resuelve (y evalúa) todo el grafo de módulos transitivos — incluyendo `PrismaAuthUserRepository` → `@network-learning-game/database` — **antes** de que `main.ts` ejecute una sola línea propia. Con instanciación eager, `createPrismaClient()` corría sin que `DATABASE_URL` existiera todavía en `process.env`, y el arranque fallaba con un error genérico de módulo en vez de nuestro propio mensaje. El Proxy hace que cualquier consumidor (esta app, tests futuros, otras apps) sea seguro sin importar cuándo cargue sus variables de entorno, siempre que lo haga antes del primer query real — no solo antes del import.
+
+## 2026-07-17 — Tests del módulo Auth: JWT firmado con secreto de prueba, no el secreto real de Supabase
+
+**Decisión**: los 12 tests del módulo Auth (verificación JWT, repositorio, e2e HTTP) usan un `SUPABASE_JWT_SECRET` de prueba fijo en el propio test, no el secreto real del proyecto Supabase (que además no se pegó en el chat, a propósito).
+
+**Motivo**: es una elección de testing legítima — se ejercita la lógica real de firma/verificación HS256 con `jsonwebtoken` (sin mocks de la librería de criptografía) y el repositorio real contra la base de datos real de Supabase (con limpieza verificada: 0 usuarios residuales tras la corrida completa). Lo único que no se puede probar todavía es que un token *genuinamente emitido por Supabase* (tras un login real) sea aceptado — eso requiere `SUPABASE_JWT_SECRET` real en `.env`, pendiente de que el usuario lo agregue, y en última instancia un flujo de login real desde el frontend (Fase 5).
+
 **Motivo**: cubrir el requisito de multi-tenancy y leaderboards por aula del PRD sin introducir una constraint de base de datos que no puede expresar correctamente la semántica deseada.
