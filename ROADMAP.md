@@ -46,18 +46,23 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [ ] Smoke test contra un token *realmente* emitido por Supabase — pendiente de `SUPABASE_JWT_SECRET` real en `.env` (los tests usan un secreto de prueba controlado).
 - [x] Aprobación del usuario para continuar sin gate por módulo (instrucción explícita: completar fases restantes de corrido).
 
-## Fase 5 — Frontend Next.js y motor de simuladores
-- [ ] Layouts, providers, Zustand store base, cliente Supabase.
-- [ ] Auth: login/registro (email+password), botón de login social Google (pendiente de que el usuario habilite el proveedor en Supabase).
-- [ ] Integración shadcn/ui + Tailwind (tema Linear/Duolingo/Notion).
-- [ ] Dashboard de estudiante (XP, nivel, racha, cursos).
-- [ ] Navegación de curso → capítulos → niveles.
-- [ ] UI del simulador VLSM con validación en vivo (reusa `packages/simulations`) + envío al backend.
+## Fase 5 — Frontend Next.js y motor de simuladores *(completa)*
+- [x] Next.js 16 (App Router, Turbopack) + TailwindCSS v4 + shadcn/ui (preset `base-nova`, Base UI) — tema propio (índigo + tokens semánticos `xp`/`streak`/`success`, look Linear/Notion con acentos estilo Duolingo).
+- [x] Cliente Supabase (`@supabase/ssr`) para browser/server/proxy, con refresco de sesión y protección de rutas.
+- [x] Auth: login/registro (email+password) + botón de login social Google, validados con React Hook Form + Zod.
+- [x] Zustand: store de sesión de laboratorio en curso (`useLabSessionStore`), por diseño (ARCHITECTURE.md §3).
+- [x] Dashboard de estudiante (XP, nivel derivado, barra de progreso, racha).
+- [x] Catálogo de cursos, detalle con capítulos/niveles, inscripción.
+- [x] Aulas: crear (TEACHER)/unirse (STUDENT) por `joinCode`.
+- [x] Leaderboard global.
+- [x] UI del simulador VLSM con validación en vivo (misma función pura de `packages/simulations` que corre en el backend) + envío autoritativo a `POST /labs/:id/attempts`.
+- [x] Build/typecheck en verde en los 6 paquetes del monorepo vía Turborepo; smoke test real con el dev server (rutas públicas 200, `/dashboard` sin sesión redirige a `/login?redirectTo=...`).
+- [ ] Smoke test completo en navegador con el backend real (signup → dashboard → lab) — pendiente de `SUPABASE_JWT_SECRET` real (ver Fase 4).
 
 ## Fase 6 — QA, E2E y despliegue en contenedores
 - [ ] Playwright E2E sobre el loop de validación de laboratorios.
 - [ ] Dockerfiles + `docker-compose` de producción (App, API, DB, Cache).
-- [ ] Matriz de despliegue de un solo comando.
+- [ ] CI/CD real (gates de build/test/typecheck) + deploy a Vercel (frontend) y Railway (backend).
 
 ## Backlog post-MVP
 - Tutor IA (orquestación real sobre el contrato definido en Fase 4).

@@ -27,7 +27,12 @@ export class PrismaCourseRepository implements CourseRepository {
       include: {
         chapters: {
           orderBy: { order: "asc" },
-          include: { levels: { orderBy: { order: "asc" } } },
+          include: {
+            levels: {
+              orderBy: { order: "asc" },
+              include: { labs: { select: { id: true }, take: 1 } },
+            },
+          },
         },
       },
     });
@@ -51,6 +56,7 @@ export class PrismaCourseRepository implements CourseRepository {
           description: level.description,
           order: level.order,
           xpReward: level.xpReward,
+          labId: level.labs[0]?.id ?? null,
         })),
       })),
     };

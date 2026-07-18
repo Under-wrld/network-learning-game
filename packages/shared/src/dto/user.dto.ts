@@ -9,6 +9,7 @@ export const UserProfileSchema = z.object({
   avatarUrl: z.url().nullable(),
   role: RoleSchema,
   totalXp: z.number().int().min(0),
+  level: z.number().int().min(0),
   currentStreak: z.number().int().min(0),
   longestStreak: z.number().int().min(0),
   lastActivityAt: z.iso.datetime().nullable(),
