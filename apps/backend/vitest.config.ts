@@ -7,6 +7,7 @@ export default defineConfig({
     setupFiles: ["./test/setup.ts"],
     globals: false,
     testTimeout: 15000,
+    hookTimeout: 20000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

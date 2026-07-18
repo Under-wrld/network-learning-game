@@ -44,4 +44,27 @@ describe("PrismaAuthUserRepository (integración contra Supabase real, sin mocks
     const found = await repository.findById(randomUUID());
     expect(found).toBeNull();
   });
+
+  it("sobrevive a dos upserts concurrentes del mismo usuario nuevo (ver DECISIONS.md)", async () => {
+    const concurrentId = randomUUID();
+    const concurrentEmail = `vitest-concurrent-${concurrentId}@example.com`;
+
+    try {
+      const [first, second] = await Promise.all([
+        repository.upsertFromClaims({ id: concurrentId, email: concurrentEmail }),
+        repository.upsertFromClaims({ id: concurrentId, email: concurrentEmail }),
+      ]);
+
+      expect(first).toEqual({
+        id: concurrentId,
+        email: concurrentEmail,
+        role: "STUDENT",
+        totalXp: 0,
+        currentStreak: 0,
+      });
+      expect(second).toEqual(first);
+    } finally {
+      await prisma.user.deleteMany({ where: { id: concurrentId } });
+    }
+  });
 });

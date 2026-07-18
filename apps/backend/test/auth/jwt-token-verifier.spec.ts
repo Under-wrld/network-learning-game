@@ -1,14 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { UnauthorizedException } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
-import jwt from "jsonwebtoken";
+import { generateKeyPair, SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { JwtTokenVerifier } from "../../src/modules/auth/infrastructure/jwt-token-verifier.js";
+import { createRealTestUser, deleteRealTestUser, type RealTestUser } from "../support/supabase-test-auth.js";
 
-const TEST_SECRET = "vitest-jwt-token-verifier-test-secret";
-
-describe("JwtTokenVerifier (crypto real, sin mocks)", () => {
+describe("JwtTokenVerifier (crypto real vía JWKS, sin mocks)", () => {
   let verifier: JwtTokenVerifier;
+  let realUser: RealTestUser;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -20,7 +21,7 @@ describe("JwtTokenVerifier (crypto real, sin mocks)", () => {
               NODE_ENV: "test",
               API_PORT: 3001,
               DATABASE_URL: "postgresql://unused-in-this-suite",
-              SUPABASE_JWT_SECRET: TEST_SECRET,
+              NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
             }),
           ],
         }),
@@ -29,45 +30,34 @@ describe("JwtTokenVerifier (crypto real, sin mocks)", () => {
     }).compile();
 
     verifier = moduleRef.get(JwtTokenVerifier);
+    realUser = await createRealTestUser("jwt-verifier");
   });
 
   afterAll(async () => {
-    // nada que limpiar: este suite no toca la base de datos.
+    await deleteRealTestUser(realUser.id);
   });
 
-  it("verifica un token real firmado con el secreto correcto", () => {
-    const token = jwt.sign({ sub: "user-123", email: "student@example.com" }, TEST_SECRET, {
-      algorithm: "HS256",
-      expiresIn: "1h",
+  it("verifica un access token real emitido por Supabase Auth (login real)", async () => {
+    await expect(verifier.verify(realUser.accessToken)).resolves.toEqual({
+      sub: realUser.id,
+      email: realUser.email,
     });
-
-    expect(verifier.verify(token)).toEqual({ sub: "user-123", email: "student@example.com" });
   });
 
-  it("rechaza un token firmado con un secreto distinto", () => {
-    const token = jwt.sign({ sub: "user-123", email: "x@example.com" }, "secreto-incorrecto", {
-      algorithm: "HS256",
-    });
+  it("rechaza un token firmado con una clave que no está en el JWKS del proyecto", async () => {
+    const { privateKey } = await generateKeyPair("ES256");
+    const untrustedToken = await new SignJWT({ email: "attacker@example.com" })
+      .setProtectedHeader({ alg: "ES256", kid: "clave-no-registrada-en-supabase" })
+      .setSubject(randomUUID())
+      .setAudience("authenticated")
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(privateKey);
 
-    expect(() => verifier.verify(token)).toThrow(UnauthorizedException);
+    await expect(verifier.verify(untrustedToken)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("rechaza un token expirado", () => {
-    const token = jwt.sign({ sub: "user-123", email: "x@example.com" }, TEST_SECRET, {
-      algorithm: "HS256",
-      expiresIn: -10,
-    });
-
-    expect(() => verifier.verify(token)).toThrow(UnauthorizedException);
-  });
-
-  it("rechaza un token sin claim de email", () => {
-    const token = jwt.sign({ sub: "user-123" }, TEST_SECRET, { algorithm: "HS256" });
-
-    expect(() => verifier.verify(token)).toThrow(UnauthorizedException);
-  });
-
-  it("rechaza un token malformado", () => {
-    expect(() => verifier.verify("no-es-un-jwt")).toThrow(UnauthorizedException);
+  it("rechaza un token malformado", async () => {
+    await expect(verifier.verify("no-es-un-jwt")).rejects.toThrow(UnauthorizedException);
   });
 });

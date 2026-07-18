@@ -1,14 +1,11 @@
-import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { prisma } from "@network-learning-game/database";
-import jwt from "jsonwebtoken";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SimulatorModule } from "../../src/modules/simulator/simulator.module.js";
-
-const TEST_SECRET = "vitest-simulator-e2e-test-secret";
+import { createRealTestUser, deleteRealTestUser, type RealTestUser } from "../support/supabase-test-auth.js";
 
 // Misma solución de referencia verificada en packages/simulations.
 const CORRECT_ANSWER = [
@@ -25,14 +22,11 @@ const WRONG_ANSWER = [
   { requirementId: "enlace-ab", cidr: "192.168.1.224/30" },
 ];
 
-describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () => {
+describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + Supabase Auth + DB reales)", () => {
   let app: INestApplication;
   let labId: string;
   let labMaxXp: number;
-
-  const userId = randomUUID();
-  const email = `simulator-e2e-${userId}@example.com`;
-  let token: string;
+  let realUser: RealTestUser;
 
   beforeAll(async () => {
     const lab = await prisma.lab.findFirstOrThrow({ where: { simulatorKey: "vlsm" } });
@@ -49,7 +43,7 @@ describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () =>
               NODE_ENV: "test",
               API_PORT: 3001,
               DATABASE_URL: process.env.DATABASE_URL,
-              SUPABASE_JWT_SECRET: TEST_SECRET,
+              NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
             }),
           ],
         }),
@@ -60,14 +54,15 @@ describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () =>
     app = moduleRef.createNestApplication();
     await app.init();
 
-    await prisma.user.create({ data: { id: userId, email } });
-    token = jwt.sign({ sub: userId, email }, TEST_SECRET, { algorithm: "HS256", expiresIn: "1h" });
+    realUser = await createRealTestUser("simulator-e2e");
+    await prisma.user.create({ data: { id: realUser.id, email: realUser.email } });
   });
 
   afterAll(async () => {
-    await prisma.labAttempt.deleteMany({ where: { userId } });
-    await prisma.xPTransaction.deleteMany({ where: { userId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
+    await prisma.labAttempt.deleteMany({ where: { userId: realUser.id } });
+    await prisma.xPTransaction.deleteMany({ where: { userId: realUser.id } });
+    await prisma.user.deleteMany({ where: { id: realUser.id } });
+    await deleteRealTestUser(realUser.id);
     await app.close();
   });
 
@@ -84,7 +79,7 @@ describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () =>
   it("una asignación incorrecta se marca FAILED, sin XP", async () => {
     const response = await request(app.getHttpServer())
       .post(`/labs/${labId}/attempts`)
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${realUser.accessToken}`)
       .send(WRONG_ANSWER)
       .expect(201);
 
@@ -92,14 +87,14 @@ describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () =>
     expect(response.body.xpAwarded).toBe(0);
     expect(response.body.errors.some((e: { code: string }) => e.code === "INSUFFICIENT_HOSTS")).toBe(true);
 
-    const profile = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const profile = await prisma.user.findUniqueOrThrow({ where: { id: realUser.id } });
     expect(profile.totalXp).toBe(0);
   });
 
   it("la solución correcta se marca PASSED, otorga XP y actualiza la racha", async () => {
     const response = await request(app.getHttpServer())
       .post(`/labs/${labId}/attempts`)
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${realUser.accessToken}`)
       .send(CORRECT_ANSWER)
       .expect(201);
 
@@ -108,11 +103,11 @@ describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () =>
     expect(response.body.xpAwarded).toBe(labMaxXp);
     expect(response.body.errors).toEqual([]);
 
-    const profile = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const profile = await prisma.user.findUniqueOrThrow({ where: { id: realUser.id } });
     expect(profile.totalXp).toBe(labMaxXp);
     expect(profile.currentStreak).toBe(1);
 
-    const transactions = await prisma.xPTransaction.findMany({ where: { userId } });
+    const transactions = await prisma.xPTransaction.findMany({ where: { userId: realUser.id } });
     expect(transactions).toHaveLength(1);
     expect(transactions[0]).toMatchObject({ amount: labMaxXp, sourceType: "LAB_COMPLETION", sourceId: labId });
   });
@@ -120,14 +115,14 @@ describe("Módulo Simulator Engine (e2e — VLSM real, HTTP + DB reales)", () =>
   it("reenviar la misma solución correcta no otorga XP de nuevo", async () => {
     const response = await request(app.getHttpServer())
       .post(`/labs/${labId}/attempts`)
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${realUser.accessToken}`)
       .send(CORRECT_ANSWER)
       .expect(201);
 
     expect(response.body.status).toBe("PASSED");
     expect(response.body.xpAwarded).toBe(0);
 
-    const profile = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const profile = await prisma.user.findUniqueOrThrow({ where: { id: realUser.id } });
     expect(profile.totalXp).toBe(labMaxXp); // sin cambios respecto al intento anterior
   });
 });

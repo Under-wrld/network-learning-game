@@ -16,7 +16,7 @@ export class AuthenticateRequestUseCase {
   ) {}
 
   async execute(bearerToken: string): Promise<AuthenticatedUser> {
-    const claims = this.tokenVerifier.verify(bearerToken);
+    const claims = await this.tokenVerifier.verify(bearerToken);
     return this.authUserRepository.upsertFromClaims({ id: claims.sub, email: claims.email });
   }
 }

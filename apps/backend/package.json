@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
@@ -21,15 +23,15 @@
     "@network-learning-game/database": "workspace:*",
     "@network-learning-game/shared": "workspace:*",
     "@network-learning-game/simulations": "workspace:*",
-    "jsonwebtoken": "9.0.3",
+    "jose": "6.2.3",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@nestjs/testing": "11.1.28",
+    "@supabase/supabase-js": "2.110.7",
     "@types/express": "5.0.6",
-    "@types/jsonwebtoken": "9.0.10",
     "@types/node": "^24.0.0",
     "@types/supertest": "7.2.1",
     "dotenv": "17.4.2",

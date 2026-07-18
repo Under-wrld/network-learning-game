@@ -173,6 +173,40 @@ Registro de decisiones arquitectónicas (ADR ligero). Cada entrada: fecha, decis
 
 Ambos Dockerfiles se construyeron y corrieron de verdad (`docker build` + `docker run`, no solo se escribieron): el backend registra todas sus rutas y responde `/health`; el frontend sirve `/` y `/login` con contenido real.
 
+## 2026-07-18 — Bug crítico real: Supabase Auth firma los access tokens con ES256 (JWKS), no HS256
+
+**Decisión**: `JwtTokenVerifier` (módulo Auth) se reescribió para verificar tokens contra el JWKS público del proyecto (`jose`, `createRemoteJWKSet` + `jwtVerify`), no contra un secreto compartido HS256. `SUPABASE_JWT_SECRET` se eliminó por completo del proyecto (`env.schema.ts`, `.env`, `.env.example`, `docker-compose.yml`, `ci-cd.yml`); `NEXT_PUBLIC_SUPABASE_URL` pasó a ser también una variable requerida por `apps/backend` (construye la URL del JWKS: `.../auth/v1/.well-known/jwks.json`).
+
+**Alternativas consideradas**: ninguna — no existe una alternativa HS256 válida para este proyecto Supabase; el fix es correctivo, no una elección de diseño entre opciones igualmente válidas.
+
+**Motivo**: bug de arquitectura introducido en Fase 4, invisible hasta el primer smoke test con un token *genuinamente* emitido por Supabase (bloqueado hasta ahora por depender de que el usuario completara el login real end-to-end). La entrada de Fase 4 sobre HS256 (ver arriba, "Tests del módulo Auth") documentaba la inferencia — hecha inspeccionando el header de las API keys `anon`/`service_role` (`alg: HS256`) — de que Supabase firmaba también los access tokens de sesión con ese mismo algoritmo. Esa inferencia era razonable pero **incorrecta**: las API keys y los access tokens de sesión son JWTs distintos con firmantes distintos. Se confirmó decodificando (sin verificar) el header de un token real, obtenido creando un usuario de verdad vía la Admin API de Supabase e iniciando sesión de verdad: `{"alg":"ES256","kid":"ff202248-..."}`. Ningún valor de `SUPABASE_JWT_SECRET` — real o no — podía haber hecho funcionar la verificación original; el guard rechazaba con 401 todo token real desde el primer día, enmascarado porque los 50 tests del módulo Auth firmaban sus propios tokens de prueba con HS256 y el mismo secreto de prueba, nunca contra el JWKS real (ver entrada anterior "Tests del módulo Auth"). El payload decodificado también confirmó que `email` sí viene incluido directamente en el claim (no hacía falta un fallback a `user_metadata`), así que `VerifiedTokenClaims { sub, email }` no cambió de forma.
+
+**Consecuencia en testing**: los 5 specs e2e de `apps/backend` (Auth/User/Course/Simulator + el unit spec del verifier) se reescribieron para crear usuarios reales vía la Admin API de Supabase e iniciar sesión de verdad, obteniendo tokens ES256 genuinos — coherente con "cero mocks", y el único enfoque que hubiera detectado este bug antes de un smoke test manual. Se agregó `apps/backend/test/support/supabase-test-auth.ts` como helper compartido. El unit spec del verifier también prueba el rechazo de un token firmado con una clave ES256 real pero no registrada en el JWKS del proyecto (vía `jose.generateKeyPair`), sin mockear la librería de verificación.
+
+## 2026-07-18 — Bug real: upsert de usuario nuevo no era seguro bajo concurrencia real
+
+**Decisión**: `PrismaAuthUserRepository.upsertFromClaims` atrapa `Prisma.PrismaClientKnownRequestError` con `code === "P2002"` y, en ese caso, relee la fila por `id` en vez de propagar el error.
+
+**Motivo**: bug real expuesto por el primer E2E que corrió de punta a punta con el fix de JWKS (antes, todo fallaba en 401 antes de llegar a este código). El primer login de un usuario nuevo dispara más de un request server-side a rutas que sincronizan el perfil casi simultáneamente (p. ej. el prefetch automático de `<Link>` de Next.js sobre `/classrooms`, que también llama a `/users/me`, mientras `/dashboard` hace su propia llamada). El `ON CONFLICT` del `upsert` de Prisma solo cubre la unicidad de `id`: si dos INSERT compiten por crear la misma fila nueva, el segundo puede chocar contra la unicidad de `email` — una constraint distinta a la del conflict target — y Postgres lo reporta como error en vez de convertirlo en `UPDATE`. Como ambos escritores usan el mismo `id` y el mismo `email` (vienen del mismo claim JWT), el perdedor de la carrera solo necesita releer lo que el ganador ya escribió. Se agregó un test de regresión que dispara dos `upsertFromClaims` concurrentes para el mismo usuario nuevo (`apps/backend/test/auth/prisma-auth-user.repository.spec.ts`).
+
+## 2026-07-18 — Bug real: `golden-path.spec.ts` dejaba filas huérfanas en `public.users`
+
+**Decisión**: el `afterAll` de `apps/e2e/tests/golden-path.spec.ts` ahora borra también `XPTransaction`/`LabAttempt`/`CourseEnrollment`/`User` (Prisma) antes de borrar el usuario en Supabase Auth — antes solo borraba el lado de Supabase Auth.
+
+**Motivo**: detectado al auditar el estado real de la base tras varias corridas de este mismo fix — 7 filas huérfanas en `public.users`, cada una con el email aleatorio de una corrida distinta, porque el login real sincroniza el perfil en `public.users` (tabla propia, gestionada por Prisma) pero `admin.auth.admin.deleteUser` solo afecta el esquema `auth` interno de Supabase. Mismo patrón de bug operativo que la entrada anterior sobre los 5 usuarios sin limpiar por el conflicto de Turborepo — la lección general (verificar el estado real de la base tras cada corrida de E2E, no asumir que el cleanup funcionó) se aplicó activamente acá y permitió detectarlo antes de que el usuario lo reportara.
+
+## 2026-07-18 — `next start` no sirve el build `output: "standalone"`; script propio para levantarlo localmente
+
+**Decisión**: el script `"start"` de `apps/frontend/package.json` pasó de `"next start"` a `"node scripts/start-standalone.mjs"`, que copia `.next/static` y `public/` dentro de `.next/standalone/apps/frontend/` (como hace el `Dockerfile` en su etapa `runner`) y arranca ese `server.js` directamente.
+
+**Motivo**: `next.config.ts` fija `output: "standalone"` desde Fase 6 (para las imágenes Docker), pero eso hace que `next start` sea explícitamente incompatible (Next.js lo advierte en stderr y no sirve nada útil) — visible únicamente al correr Playwright de verdad contra un build real, no en `next dev`. El `webServer` de `apps/e2e/playwright.config.ts` invoca `pnpm --filter frontend run start`, así que sin este fix el E2E nunca hubiera podido levantar el frontend en modo producción. El script es la única forma de reusar el mismo build standalone tanto en Docker (`Dockerfile`, `COPY` multi-stage) como localmente (copia real de archivos vía Node), sin mantener dos configuraciones de build distintas.
+
+## 2026-07-18 — Locators de Playwright deben apuntar a `data-testid`, no a texto ambiguo
+
+**Decisión**: se agregaron `data-testid="total-xp-badge"` (dashboard) y `data-testid="lab-result"` (simulador VLSM) a los componentes del frontend, y `golden-path.spec.ts` los usa en vez de `page.getByText(...)` con substrings cortos.
+
+**Motivo**: el primer E2E que corrió de punta a punta (tras el fix de JWKS) expuso que `getByText("0 XP")` y `getByText(/\+150 XP/)` violan el modo estricto de Playwright — matchean más de un elemento real de la UI (la barra de progreso de nivel también contiene el substring "0 XP"; el toast de éxito y el panel de resultado persistente ambos contienen "+150 XP"). Ninguna de las dos coincidencias es un bug de la UI — son dos piezas de información legítimas y distintas que comparten texto. La solución correcta es un selector estable y semántico, no un regex más específico que se puede volver a romper con el próximo cambio de copy.
+
 ## 2026-07-17 — Sin Postgres en `docker-compose.yml`; Redis provisto pero no integrado
 
 **Decisión**: `docker/docker-compose.yml` define `backend`, `frontend` y `redis` — no un servicio de Postgres, pese a que `CLAUDE.md` módulo 25 pide "App, API, DB, Cache".

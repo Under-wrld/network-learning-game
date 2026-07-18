@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@network-learning-game/database": "workspace:*",
     "@supabase/supabase-js": "2.110.7",
     "dotenv": "17.4.2"
   },

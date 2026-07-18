@@ -37,7 +37,9 @@ export default async function DashboardPage() {
             <CardTitle className="text-sm text-muted-foreground">XP total</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge className="bg-xp px-2.5 py-1 text-sm text-xp-foreground">{profile.totalXp} XP</Badge>
+            <Badge data-testid="total-xp-badge" className="bg-xp px-2.5 py-1 text-sm text-xp-foreground">
+              {profile.totalXp} XP
+            </Badge>
           </CardContent>
         </Card>
 

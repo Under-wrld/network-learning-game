@@ -18,9 +18,11 @@ jobs:
       # Settings → Secrets and variables → Actions del repo de GitHub.
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # Los tests de Auth crean/eliminan usuarios reales vía la Admin API de
+      # Supabase para obtener access tokens ES256 genuinos (ver DECISIONS.md).
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - name: Checkout código
         uses: actions/checkout@v4

@@ -6,7 +6,7 @@
     "postinstall": "node scripts/ensure-typescript-shim.mjs",
     "dev": "node scripts/ensure-typescript-shim.mjs && next dev",
     "build": "node scripts/ensure-typescript-shim.mjs && next build",
-    "start": "next start",
+    "start": "node scripts/start-standalone.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

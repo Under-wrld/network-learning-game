@@ -5,7 +5,7 @@ export interface VerifiedTokenClaims {
 
 /** Puerto de verificación de tokens; la implementación real vive en infrastructure/. */
 export interface TokenVerifier {
-  verify(token: string): VerifiedTokenClaims;
+  verify(token: string): Promise<VerifiedTokenClaims>;
 }
 
 export const TOKEN_VERIFIER = Symbol("TOKEN_VERIFIER");

@@ -36,7 +36,7 @@ pnpm --filter e2e exec playwright install chromium   # una sola vez
 pnpm test:e2e
 ```
 
-Necesita `SUPABASE_SERVICE_ROLE_KEY` y un `SUPABASE_JWT_SECRET` real (no el de prueba que usan los tests de Vitest) en el `.env` raíz — sin eso, `apps/backend` no arranca. `test:e2e` es un task separado de `test` en `turbo.json`: si viviera bajo el mismo task, un fallo ahí podría matar tareas hermanas de Vitest a mitad de corrida vía Turborepo y dejar datos de prueba sin limpiar en la base real (nos pasó una vez — ver `DECISIONS.md`).
+Necesita `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` reales en el `.env` raíz — sin eso, `apps/backend` no arranca (`NEXT_PUBLIC_SUPABASE_URL` alimenta el JWKS con el que se verifican los tokens ES256 de Supabase Auth) y los tests de Vitest de `apps/backend` tampoco pueden crear usuarios de prueba reales. `test:e2e` es un task separado de `test` en `turbo.json`: si viviera bajo el mismo task, un fallo ahí podría matar tareas hermanas de Vitest a mitad de corrida vía Turborepo y dejar datos de prueba sin limpiar en la base real (nos pasó una vez — ver `DECISIONS.md`).
 
 ### Docker
 

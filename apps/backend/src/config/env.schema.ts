@@ -4,9 +4,9 @@ export const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATABASE_URL: z.string().min(1, "DATABASE_URL es requerido"),
-  SUPABASE_JWT_SECRET: z
-    .string()
-    .min(1, "SUPABASE_JWT_SECRET es requerido para validar tokens de Supabase Auth"),
+  NEXT_PUBLIC_SUPABASE_URL: z
+    .url("NEXT_PUBLIC_SUPABASE_URL debe ser una URL válida")
+    .min(1, "NEXT_PUBLIC_SUPABASE_URL es requerido para validar tokens de Supabase Auth vía JWKS"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { prisma } from "@network-learning-game/database";
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
@@ -37,6 +38,14 @@ test.describe("Golden path: login → dashboard → curso → laboratorio VLSM",
 
   test.afterAll(async () => {
     if (testUserId) {
+      // El login real sincroniza el perfil en public.users (fuera de
+      // Supabase Auth) y el golden path completo deja inscripción/intento/XP
+      // — hay que limpiar las cuatro tablas o quedan filas huérfanas en la
+      // base real (nos pasó: 7 usuarios de prueba sin limpiar, ver DECISIONS.md).
+      await prisma.xPTransaction.deleteMany({ where: { userId: testUserId } });
+      await prisma.labAttempt.deleteMany({ where: { userId: testUserId } });
+      await prisma.courseEnrollment.deleteMany({ where: { userId: testUserId } });
+      await prisma.user.deleteMany({ where: { id: testUserId } });
       await admin.auth.admin.deleteUser(testUserId);
     }
   });
@@ -49,7 +58,7 @@ test.describe("Golden path: login → dashboard → curso → laboratorio VLSM",
 
     await page.waitForURL("/dashboard");
     await expect(page.getByRole("heading", { name: /^Hola,/ })).toBeVisible();
-    await expect(page.getByText("0 XP")).toBeVisible();
+    await expect(page.getByTestId("total-xp-badge")).toHaveText("0 XP");
 
     await page.getByRole("link", { name: /Ver catálogo de cursos/ }).click();
     await page.waitForURL("/courses");
@@ -74,11 +83,12 @@ test.describe("Golden path: login → dashboard → curso → laboratorio VLSM",
 
     await page.getByRole("button", { name: "Enviar" }).click();
 
-    await expect(page.getByText("¡Laboratorio aprobado!")).toBeVisible();
-    await expect(page.getByText(/\+150 XP/)).toBeVisible();
+    const labResult = page.getByTestId("lab-result");
+    await expect(labResult.getByText("¡Laboratorio aprobado!")).toBeVisible();
+    await expect(labResult.getByText(/\+150 XP/)).toBeVisible();
 
     await page.goto("/dashboard");
-    await expect(page.getByText("150 XP")).toBeVisible();
+    await expect(page.getByTestId("total-xp-badge")).toHaveText("150 XP");
   });
 
   test("una asignación incorrecta no otorga XP y muestra los errores", async ({ page }) => {
@@ -102,6 +112,6 @@ test.describe("Golden path: login → dashboard → curso → laboratorio VLSM",
 
     await page.getByRole("button", { name: "Enviar" }).click();
 
-    await expect(page.getByText("Todavía no")).toBeVisible();
+    await expect(page.getByTestId("lab-result").getByText("Todavía no")).toBeVisible();
   });
 });

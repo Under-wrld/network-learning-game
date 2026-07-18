@@ -113,7 +113,7 @@ export function VlsmSimulator({ labId, exercise, maxXp }: VlsmSimulatorProps) {
         </Card>
 
         {result && (
-          <Alert variant={result.status === "PASSED" ? "default" : "destructive"}>
+          <Alert data-testid="lab-result" variant={result.status === "PASSED" ? "default" : "destructive"}>
             {result.status === "PASSED" ? (
               <CheckCircle2 className="size-4 text-success" />
             ) : (
