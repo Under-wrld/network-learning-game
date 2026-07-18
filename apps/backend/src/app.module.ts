@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { validateEnv } from "./config/env.schema.js";
+import { HealthController } from "./health/health.controller.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { CourseModule } from "./modules/course/course.module.js";
 import { SimulatorModule } from "./modules/simulator/simulator.module.js";
@@ -23,5 +24,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
     CourseModule,
     SimulatorModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

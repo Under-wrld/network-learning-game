@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Bundle mínimo autocontenido para producción/Docker (Dockerfile lo copia tal cual).
+  output: "standalone",
   typescript: {
     // TypeScript 7 (native/Go compiler) removed the classic `typescript.js`
     // Compiler API that Next.js's built-in type-checker depends on — its

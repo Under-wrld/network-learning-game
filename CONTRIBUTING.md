@@ -19,12 +19,36 @@ Todos los comandos raíz delegan en Turborepo, que solo ejecuta el task en los p
 ```bash
 pnpm dev          # levanta apps/frontend y apps/backend en modo watch
 pnpm build        # build de todo el monorepo
-pnpm lint         # lint de todo el monorepo
-pnpm typecheck    # chequeo de tipos de todo el monorepo
-pnpm test         # tests (Vitest) de todo el monorepo
+pnpm lint         # lint de todo el monorepo (ver nota TypeScript 7 abajo)
+pnpm typecheck    # chequeo de tipos de todo el monorepo — el gate real de tipos
+pnpm test         # tests unitarios/integración (Vitest) de todo el monorepo
+pnpm test:e2e     # Playwright E2E (ver abajo) — separado de `test` a propósito
 ```
 
 Para apuntar a un paquete específico: `pnpm --filter backend test`, `pnpm --filter frontend dev`, etc.
+
+### E2E (Playwright)
+
+`apps/e2e` corre el golden path completo (login → dashboard → curso → laboratorio VLSM) contra el backend y frontend reales, usando la Admin API de Supabase para crear un usuario de prueba ya confirmado (evita depender de un proveedor de email real). Requiere:
+
+```bash
+pnpm --filter e2e exec playwright install chromium   # una sola vez
+pnpm test:e2e
+```
+
+Necesita `SUPABASE_SERVICE_ROLE_KEY` y un `SUPABASE_JWT_SECRET` real (no el de prueba que usan los tests de Vitest) en el `.env` raíz — sin eso, `apps/backend` no arranca. `test:e2e` es un task separado de `test` en `turbo.json`: si viviera bajo el mismo task, un fallo ahí podría matar tareas hermanas de Vitest a mitad de corrida vía Turborepo y dejar datos de prueba sin limpiar en la base real (nos pasó una vez — ver `DECISIONS.md`).
+
+### Docker
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file .env up --build
+```
+
+Postgres NO está en el stack — el proyecto usa Supabase gestionado; `DATABASE_URL` en `.env` ya apunta ahí. Ver `DECISIONS.md` para el resto de las decisiones de la topología.
+
+### TypeScript 7 y herramientas de terceros
+
+Este repo usa TypeScript 7 (compilador nativo) en todos los paquetes. Al momento de escribir esto, dos herramientas no lo soportan todavía: el type-checker interno de `next build` (mitigado con `ignoreBuildErrors` + un shim de `postinstall`, ver `apps/frontend/next.config.ts`) y `@typescript-eslint` (por eso `apps/frontend` no tiene script `"lint"` — `pnpm typecheck`, que sí funciona, es el gate real). Ver `DECISIONS.md` para el detalle completo de cada workaround.
 
 ## Flujo de trabajo — protocolo "Stop & Ask"
 

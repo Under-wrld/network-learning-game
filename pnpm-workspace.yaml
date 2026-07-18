@@ -3,6 +3,14 @@ packages:
   - 'apps/**'
   # Paquetes de configuración, diseño, base de datos y simulaciones compartidas
   - 'packages/**'
+  # El output "standalone" de Next.js espeja apps/frontend/package.json
+  # dentro de .next/ — sin esta exclusión, pnpm/turbo lo detectan como un
+  # segundo workspace "frontend" duplicado en cada build local.
+  - '!apps/**/.next/**'
+  - '!apps/**/dist/**'
+# Requerido por `pnpm deploy` (usado en los Dockerfiles) para empaquetar
+# dependencias workspace:* como archivos reales en vez de symlinks.
+injectWorkspacePackages: true
 allowBuilds:
   '@prisma/engines': true
   esbuild: true

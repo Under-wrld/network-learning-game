@@ -162,3 +162,25 @@ Registro de decisiones arquitectónicas (ADR ligero). Cada entrada: fecha, decis
 **Alternativas consideradas**: desactivar solo las reglas type-aware manteniendo el parser de `@typescript-eslint`; esperar una versión más nueva de `@typescript-eslint`.
 
 **Motivo**: `@typescript-eslint/typescript-estree@8.64.0` (la última publicada — verificado con `pnpm view`) crashea (`Cannot read properties of undefined (reading 'Cjs')`) al parsear *cualquier* archivo `.ts`/`.tsx` bajo TypeScript 7, porque construye un "watch program" incondicionalmente como parte de su pipeline de parseo — no es un chequeo type-aware opcional que se pueda desactivar por config, ocurre antes de que corra ninguna regla. `pnpm typecheck` (tsc --noEmit, funcionando correctamente en los 6 paquetes) sigue siendo el gate de corrección de tipos; el lint de estilo queda pendiente hasta que `@typescript-eslint` publique soporte para TS7 — el resto del monorepo (`database`/`backend`/`shared`/`simulations`) tampoco definía un script `"lint"` propio, así que esto es consistente con el estado previo, no una regresión nueva.
+
+## 2026-07-17 — Docker: `pnpm deploy` en vez de copiar `node_modules` completo
+
+**Decisión**: los Dockerfiles de `backend` y `frontend` construyen el monorepo completo en una etapa `builder` y usan `pnpm --filter <app> deploy --prod /deploy` (backend) o `output: "standalone"` de Next.js (frontend) para producir una carpeta final mínima y autocontenida, en vez de copiar el `node_modules` completo del monorepo a la imagen final.
+
+**Motivo**: dos problemas reales encontrados y resueltos, no hipotéticos:
+1. `pnpm deploy` en pnpm 11 requiere `injectWorkspacePackages: true` en `pnpm-workspace.yaml` (si no, falla con `ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`) — confirmado contra el error real del CLI.
+2. Los paquetes `database`/`shared`/`simulations` no tenían campo `"files"` en su `package.json`, y su `dist/` está gitignored. El empaquetado de `pnpm deploy` respeta esa exclusión por defecto, así que sin un `"files": ["dist"]` explícito, el `dist/` compilado se habría quedado afuera de la imagen final — un contenedor que arranca pero no encuentra sus propios módulos compilados. Se agregó `"files": ["dist"]` a los cuatro `package.json` (`database`, `shared`, `simulations`, `backend`) y se verificó con `docker run` real que `node_modules/@network-learning-game/database/dist/{src,generated}` efectivamente están presentes en la imagen.
+
+Ambos Dockerfiles se construyeron y corrieron de verdad (`docker build` + `docker run`, no solo se escribieron): el backend registra todas sus rutas y responde `/health`; el frontend sirve `/` y `/login` con contenido real.
+
+## 2026-07-17 — Sin Postgres en `docker-compose.yml`; Redis provisto pero no integrado
+
+**Decisión**: `docker/docker-compose.yml` define `backend`, `frontend` y `redis` — no un servicio de Postgres, pese a que `CLAUDE.md` módulo 25 pide "App, API, DB, Cache".
+
+**Motivo**: coherente con la decisión ya tomada de usar Supabase como Postgres gestionado (ver entrada anterior sobre Supabase) — un Postgres local en el compose sería una segunda base de datos que nadie usaría, ya que `DATABASE_URL`/`DIRECT_URL` apuntan a Supabase incluso corriendo este stack localmente. Redis sí se incluye (cumple el requisito de "Cache" del módulo 25) pero **no está todavía integrado en la lógica de `apps/backend`** (sin rate limiting ni caché real usándolo) — queda provisto y listo para cuando se implemente, documentado como tal en vez de presentado como una feature terminada.
+
+## 2026-07-17 — Bug operativo real: un fallo en E2E mató la limpieza de tests de Vitest a mitad de corrida
+
+**Decisión**: `apps/e2e`'s script se renombró de `"test"` a `"test:e2e"`, con su propio task de Turborepo (`test:e2e`, `cache: false`), separado del task `"test"` que usan `database`/`shared`/`simulations`/`backend`.
+
+**Motivo**: bug real observado, no anticipado por diseño. Al correr `pnpm test` desde la raíz con `apps/e2e` todavía usando el nombre de script `"test"`, Turborepo ejecutó los tasks de Vitest y Playwright en paralelo; cuando Playwright falló rápido (por `SUPABASE_JWT_SECRET` inválido, bloqueando el arranque del backend vía `webServer`), Turborepo cortó tareas hermanas de Vitest a mitad de ejecución. Eso interrumpió los hooks `afterAll` de limpieza de varios specs de `apps/backend`, dejando **5 usuarios de prueba reales sin borrar** en la base de Supabase (detectado y corregido manualmente). Separar `test:e2e` de `test` como tasks distintos de Turborepo evita que Playwright (que necesita infraestructura completamente distinta: ambos servers corriendo, browser, credenciales reales) pueda interrumpir la suite de Vitest, que si es segura de correr en cualquier momento. Regla general para el resto del proyecto: cualquier suite que dependa de servicios externos completos (no solo la DB) debe tener su propio task de Turborepo, nunca compartir `"test"`.

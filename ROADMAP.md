@@ -59,10 +59,16 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] Build/typecheck en verde en los 6 paquetes del monorepo vía Turborepo; smoke test real con el dev server (rutas públicas 200, `/dashboard` sin sesión redirige a `/login?redirectTo=...`).
 - [ ] Smoke test completo en navegador con el backend real (signup → dashboard → lab) — pendiente de `SUPABASE_JWT_SECRET` real (ver Fase 4).
 
-## Fase 6 — QA, E2E y despliegue en contenedores
-- [ ] Playwright E2E sobre el loop de validación de laboratorios.
-- [ ] Dockerfiles + `docker-compose` de producción (App, API, DB, Cache).
-- [ ] CI/CD real (gates de build/test/typecheck) + deploy a Vercel (frontend) y Railway (backend).
+## Fase 6 — QA, E2E y despliegue en contenedores *(en curso)*
+- [x] Playwright configurado (`apps/e2e`), con auto-arranque de backend+frontend vía `webServer`. Golden path completo escrito: login → dashboard → catálogo → inscripción → laboratorio VLSM → XP, más un caso de asignación incorrecta. Usa la Admin API de Supabase para crear un usuario ya confirmado (evita depender de email real).
+- [x] `apps/backend/src/health` — endpoint `GET /health`, usado por Docker healthchecks y por Playwright para esperar a que el server esté listo.
+- [x] Dockerfiles multi-stage para `backend` (`pnpm deploy --prod`, imagen `node:24-alpine`) y `frontend` (Next.js `output: "standalone"`) — **construidos y corridos de verdad** con `docker build`/`docker run`, no solo escritos: el backend levantó todas las rutas y respondió `/health`; el frontend sirvió `/` y `/login` con `curl`.
+- [x] `docker/docker-compose.yml` (backend + frontend + Redis; sin Postgres — Supabase gestionado, ver `DECISIONS.md`) — validado con `docker compose build` real.
+- [x] `.github/workflows/ci-cd.yml` reescrito: typecheck/lint/test/build reales contra secrets de GitHub Actions (a configurar por el usuario) + job separado de validación de builds Docker.
+- [x] `pnpm test` y `pnpm test:e2e` separados como tasks de Turborepo distintos — evita que un fallo en E2E mate procesos de Vitest a mitad de corrida (nos dejó 5 usuarios de prueba sin limpiar una vez; ver `DECISIONS.md`).
+- [ ] Correr `pnpm test:e2e` de verdad y hacer el smoke test completo en navegador — pendiente de `SUPABASE_JWT_SECRET` real (ver Fase 4/5).
+- [ ] Deploy real a Vercel (frontend) y Railway (backend).
+- [ ] Push a `origin/main`.
 
 ## Backlog post-MVP
 - Tutor IA (orquestación real sobre el contrato definido en Fase 4).
