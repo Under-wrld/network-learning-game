@@ -91,4 +91,22 @@ Registro de decisiones arquitectónicas (ADR ligero). Cada entrada: fecha, decis
 
 **Motivo**: es una elección de testing legítima — se ejercita la lógica real de firma/verificación HS256 con `jsonwebtoken` (sin mocks de la librería de criptografía) y el repositorio real contra la base de datos real de Supabase (con limpieza verificada: 0 usuarios residuales tras la corrida completa). Lo único que no se puede probar todavía es que un token *genuinamente emitido por Supabase* (tras un login real) sea aceptado — eso requiere `SUPABASE_JWT_SECRET` real en `.env`, pendiente de que el usuario lo agregue, y en última instancia un flujo de login real desde el frontend (Fase 5).
 
-**Motivo**: cubrir el requisito de multi-tenancy y leaderboards por aula del PRD sin introducir una constraint de base de datos que no puede expresar correctamente la semántica deseada.
+## 2026-07-17 — Bug real: el guard de Auth pisaba `lastActivityAt` antes de que corriera la racha
+
+**Decisión**: `PrismaAuthUserRepository.upsertFromClaims` ya no escribe `lastActivityAt` (ni en `create` ni en `update`) — solo sincroniza `email`/existencia.
+
+**Motivo**: detectado por el test e2e del módulo Simulator Engine, no por inspección manual. `SupabaseAuthGuard` corre en *toda* request autenticada y llamaba a `upsertFromClaims`, que ponía `lastActivityAt: new Date()` en cada request — incluyendo la request de `POST /labs/:id/attempts` que un momento después disparaba `RecordActivityUseCase`. Para cuando `computeNextStreak` leía `lastActivityAt`, el guard ya lo había puesto en "hoy" unos milisegundos antes, así que la racha nunca se incrementaba (se interpretaba como "segunda actividad del mismo día"). Un test que llamaba al repositorio o al caso de uso directamente (sin pasar por el guard HTTP) no exponía el bug — solo el flujo HTTP completo lo hacía, lo que confirma el valor de los e2e reales sobre tests unitarios aislados para código que cruza módulos. `lastActivityAt`/racha son responsabilidad exclusiva del módulo User, disparada por acciones de engagement reales (completar un lab), nunca por la mera autenticación de una request.
+
+## 2026-07-17 — Leaderboard MVP: lectura en vivo de `User.totalXp`, sin job de recomputo
+
+**Decisión**: `GET /leaderboard/global` y `GET /leaderboard/classroom/:id` consultan `User.totalXp` directamente (`ORDER BY totalXp DESC`), sin poblar la tabla `LeaderboardEntry` (caché) definida en el schema.
+
+**Motivo**: para el volumen de usuarios del MVP, una lectura en vivo es simple, siempre consistente y suficientemente rápida (índice en `totalXp`). `LeaderboardEntry` queda en el schema para cuando el volumen justifique un job de recomputo periódico (evita re-escribir migraciones más adelante), pero implementarlo ahora sería trabajo sin usuario que lo necesite todavía — documentado como backlog explícito, no como código a medio construir.
+
+## 2026-07-17 — Un solo simulador implementado (VLSM/subnetting), no los ocho capítulos
+
+**Decisión**: `packages/simulations` implementa un único motor determinista (VLSM/subnetting, Capa de Red) con contenido real sembrado (un laboratorio bajo Capítulo 5). `packages/game-engine` (wrappers Phaser 3 para animaciones de bajo nivel: backoff CSMA/CD, flujos de bits) y el constructor de topologías drag-and-drop con React Flow/Konva (módulo 8 completo) quedan sin implementar.
+
+**Alternativas consideradas**: construir un simulador superficial por capítulo para cubrir los 8 capítulos de Tanenbaum con menor profundidad cada uno.
+
+**Motivo**: decisión ya tomada en `docs/PRD.md` §3/§7 desde Fase 1 ("se prioriza profundidad en Capas de Red y Transporte sobre amplitud en las 8") y reafirmada explícitamente por el usuario al pedir avanzar por todas las fases restantes de corrido. `CLAUDE.md` prohíbe código parcial (`// TODO`, lógica vacía); la alternativa de "un poco de cada simulador" habría significado ocho motores a medio terminar en vez de uno completo, testeado con vectores reales, y con validación server-side genuina de punta a punta. Los simuladores restantes quedan en el backlog de `ROADMAP.md`, no como stubs en el código.

@@ -4,6 +4,9 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { validateEnv } from "./config/env.schema.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
+import { CourseModule } from "./modules/course/course.module.js";
+import { SimulatorModule } from "./modules/simulator/simulator.module.js";
+import { UserModule } from "./modules/user/user.module.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +19,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
       validate: validateEnv,
     }),
     AuthModule,
+    UserModule,
+    CourseModule,
+    SimulatorModule,
   ],
 })
 export class AppModule {}

@@ -28,15 +28,14 @@ export class PrismaAuthUserRepository implements AuthUserRepository {
   }
 
   async upsertFromClaims(input: UpsertAuthUserInput): Promise<AuthenticatedUser> {
+    // Solo sincroniza identidad (email/existencia). No toca lastActivityAt:
+    // ese campo alimenta la racha diaria (módulo User) y debe reflejar
+    // actividad real (completar un lab, etc.), no la mera autenticación de
+    // cada request — el guard corre en todas las llamadas protegidas.
     const user = await prisma.user.upsert({
       where: { id: input.id },
-      update: { email: input.email, lastActivityAt: new Date() },
-      create: {
-        id: input.id,
-        email: input.email,
-        role: "STUDENT",
-        lastActivityAt: new Date(),
-      },
+      update: { email: input.email },
+      create: { id: input.id, email: input.email, role: "STUDENT" },
     });
     return toAuthenticatedUser(user);
   }

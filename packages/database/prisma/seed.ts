@@ -68,22 +68,37 @@ const TANENBAUM_CHAPTERS = [
   },
 ] as const;
 
+// Ejercicio VLSM de referencia — verificado por los tests de
+// packages/simulations/test/vlsm/validator.test.ts (solución conocida:
+// /25, /26, /27, /30 sin solapamiento dentro de 192.168.1.0/24).
+const VLSM_EXERCISE = {
+  baseNetwork: "192.168.1.0/24",
+  requirements: [
+    { id: "ventas", label: "Ventas", hostsNeeded: 100 },
+    { id: "ingenieria", label: "Ingeniería", hostsNeeded: 50 },
+    { id: "contabilidad", label: "Contabilidad", hostsNeeded: 25 },
+    { id: "enlace-ab", label: "Enlace Router A-B", hostsNeeded: 2 },
+  ],
+};
+
 async function main(): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const course = await tx.course.upsert({
       where: { slug: "redes-de-computadoras-i" },
-      update: {},
+      update: { isPublished: true },
       create: {
         slug: "redes-de-computadoras-i",
         title: "Redes de Computadoras I",
         description: "Curso alineado a Computer Networks, 5th Edition (Tanenbaum & Wetherall).",
         order: 1,
-        isPublished: false,
+        isPublished: true,
       },
     });
 
+    let networkChapterId: string | null = null;
+
     for (const chapter of TANENBAUM_CHAPTERS) {
-      await tx.chapter.upsert({
+      const upserted = await tx.chapter.upsert({
         where: { courseId_order: { courseId: course.id, order: chapter.order } },
         update: {
           title: chapter.title,
@@ -98,13 +113,61 @@ async function main(): Promise<void> {
           order: chapter.order,
         },
       });
+      if (chapter.tanenbaumChapter === 5) {
+        networkChapterId = upserted.id;
+      }
+    }
+
+    if (!networkChapterId) {
+      throw new Error("No se encontró el capítulo de Capa de Red recién sembrado");
+    }
+
+    const level = await tx.level.upsert({
+      where: { chapterId_order: { chapterId: networkChapterId, order: 1 } },
+      update: {},
+      create: {
+        chapterId: networkChapterId,
+        title: "Subnetting con VLSM",
+        description:
+          "Dado un bloque de direcciones IPv4, dividilo en subredes de tamaño variable (VLSM) que cubran cada requisito de hosts sin desperdiciar direcciones ni solaparse.",
+        order: 1,
+        xpReward: 150,
+      },
+    });
+
+    const existingLab = await tx.lab.findFirst({ where: { levelId: level.id, simulatorKey: "vlsm" } });
+    if (existingLab) {
+      await tx.lab.update({
+        where: { id: existingLab.id },
+        data: {
+          title: "VLSM: red de la sucursal",
+          description:
+            "Una sucursal necesita 4 subredes con distintos requisitos de hosts. Asigná un bloque CIDR a cada una dentro de 192.168.1.0/24, sin desperdiciar direcciones ni solapar bloques.",
+          initialState: VLSM_EXERCISE,
+          validationCriteria: { requireExact: true },
+          maxXp: 150,
+        },
+      });
+    } else {
+      await tx.lab.create({
+        data: {
+          levelId: level.id,
+          title: "VLSM: red de la sucursal",
+          description:
+            "Una sucursal necesita 4 subredes con distintos requisitos de hosts. Asigná un bloque CIDR a cada una dentro de 192.168.1.0/24, sin desperdiciar direcciones ni solapar bloques.",
+          simulatorKey: "vlsm",
+          initialState: VLSM_EXERCISE,
+          validationCriteria: { requireExact: true },
+          maxXp: 150,
+        },
+      });
     }
   });
 }
 
 main()
   .then(async () => {
-    console.log("Seed completado: curso base + 8 capítulos de Tanenbaum.");
+    console.log("Seed completado: curso base + 8 capítulos de Tanenbaum + laboratorio VLSM.");
     await prisma.$disconnect();
   })
   .catch(async (error: unknown) => {

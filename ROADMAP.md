@@ -34,20 +34,25 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] Build/typecheck/test validados desde la raíz vía Turborepo.
 - [x] Aprobación del usuario para pasar a Fase 4.
 
-## Fase 4 — Backend NestJS (módulo por módulo)
+## Fase 4 — Backend NestJS (módulo por módulo) *(completa)*
 - [x] Setup base de `apps/backend`: NestJS 11 en ESM, validación de env con Zod al bootstrap, `ConfigModule` apuntando al `.env` raíz.
-- [x] `Auth` — Clean Architecture (domain/application/infrastructure): verificación JWT (HS256, `SUPABASE_JWT_SECRET`), sincronización de perfil (`upsert` en `public.users`), guard + decorator `@CurrentUser()`, endpoint `GET /auth/me`.
-  - [x] 12 tests Vitest sin mocks: crypto real (firma/verificación JWT), integración contra Supabase real (repositorio), e2e HTTP real contra la app completa. Todos verificados limpiando sus datos de prueba (0 usuarios residuales tras la corrida).
-  - [ ] Smoke test contra un token *realmente* emitido por Supabase — pendiente de `SUPABASE_JWT_SECRET` real en `.env` (los tests actuales usan un secreto de prueba controlado, no el del proyecto).
-- [ ] `User` (perfil, XP, badges, streak).
-- [ ] `Course/Gamification` (cursos, capítulos, niveles, quests, leaderboard).
-- [ ] `Simulator Engine` (validación server-side de laboratorios).
-- [ ] Aprobación del usuario para pasar al módulo `User`.
+- [x] `Auth` — verificación JWT (HS256, `SUPABASE_JWT_SECRET`), sincronización de identidad (`upsert` en `public.users`), guard + decorator `@CurrentUser()`, endpoint `GET /auth/me`.
+- [x] `User` — perfil, motor XP/nivel (`XP = 100 × nivel^1.5`), racha diaria, `GET/PATCH /users/me`.
+- [x] `Course/Gamification` — catálogo de cursos, inscripción, aulas (`Classroom`, crear/unirse por `joinCode`, RBAC de rol vía `RolesGuard`), leaderboard global/por aula.
+- [x] `packages/simulations` — motor VLSM/subnetting determinista y puro (`validateVlsmAllocation`), compartible entre frontend y backend.
+- [x] `Simulator Engine` — `GET /labs/:id`, `POST /labs/:id/attempts`: valida contra el motor VLSM, otorga XP solo en el primer PASSED, actualiza racha.
+- [x] Contenido real sembrado: laboratorio VLSM completo bajo Capítulo 5 (Capa de Red) → Nivel "Subnetting con VLSM".
+- [x] 146 tests en verde en todo el monorepo (83 shared + 11 simulations + 52 backend), sin mocks: crypto real, DB real (Supabase), e2e HTTP real. Un test e2e detectó y permitió corregir un bug real de cross-módulo (ver `DECISIONS.md`).
+- [ ] Smoke test contra un token *realmente* emitido por Supabase — pendiente de `SUPABASE_JWT_SECRET` real en `.env` (los tests usan un secreto de prueba controlado).
+- [x] Aprobación del usuario para continuar sin gate por módulo (instrucción explícita: completar fases restantes de corrido).
 
 ## Fase 5 — Frontend Next.js y motor de simuladores
-- [ ] Layouts, providers, Zustand store base.
+- [ ] Layouts, providers, Zustand store base, cliente Supabase.
+- [ ] Auth: login/registro (email+password), botón de login social Google (pendiente de que el usuario habilite el proveedor en Supabase).
 - [ ] Integración shadcn/ui + Tailwind (tema Linear/Duolingo/Notion).
-- [ ] Primer simulador interactivo funcional end-to-end (candidato: subnetting/VLSM, Capa de Red).
+- [ ] Dashboard de estudiante (XP, nivel, racha, cursos).
+- [ ] Navegación de curso → capítulos → niveles.
+- [ ] UI del simulador VLSM con validación en vivo (reusa `packages/simulations`) + envío al backend.
 
 ## Fase 6 — QA, E2E y despliegue en contenedores
 - [ ] Playwright E2E sobre el loop de validación de laboratorios.
