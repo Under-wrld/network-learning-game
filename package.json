@@ -9,13 +9,6 @@
   "engines": {
     "node": ">=22"
   },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "11.13.1",
-      "onFail": "download"
-    }
-  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
