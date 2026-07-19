@@ -74,8 +74,17 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
   - En el camino se encontraron y corrigieron 3 bugs reales más de plataforma (ninguno visible en CI/Docker/local): Railway necesita una variable `PORT` explícita para el healthcheck aunque la app nunca la lee; Vercel necesita `rootDirectory` + `.vercelignore` para monorepos pnpm; `pnpm-lock.yaml` tenía un bug real de doble-documento YAML (pnpm 11 auto-gestionando su propio binario) que el pnpm del build de Vercel no toleraba. Ver `DECISIONS.md`.
 - [x] Push a `origin/main`.
 
+## Fase 7 — Contenido curricular gamificado *(en curso)*
+- [x] Pipeline de autoría de contenido: `packages/database/content/` (TypeScript tipado, `ChapterContent`/`LevelContent`/`QuizQuestion`/`BossBattleContent`) consumido por `prisma/seed.ts` — no JSON suelto desconectado de la base. Ver `DECISIONS.md`.
+- [x] `Level.content` (Json) agregado al schema para guardar teoría + aplicación real de cada nivel.
+- [x] Sistema de títulos de nivel de jugador (`levelTitle`, "Network Novice" → "Routing Master" en nivel 10 → techo en 30), con tests.
+- [x] Capítulo 1 completo (Introducción): 3 niveles de teoría + mini-quiz (Usos de las Redes, Hardware/Escala, Software/Modelos de Referencia OSI vs. TCP/IP) + 1 Boss Battle de 10 preguntas — contenido real, sembrado y verificado con una query contra la base real (no solo escrito).
+- [ ] **Gap real y explícito**: no existe todavía un módulo de backend para *rendir* un `Assessment` (a diferencia de `Lab`, que sí tiene su Simulator Engine completo desde Fase 4) ni una UI de frontend para leer `Level.content` o tomar un quiz. `GET /courses/:slug` tampoco expone ese contenido todavía. El contenido de los próximos 7 capítulos también queda pendiente.
+
 ## Backlog post-MVP
+- Motor de lectura + quiz-taking (backend: `AssessmentModule` con endpoints para iniciar/enviar intentos y otorgar XP; frontend: página de lectura de `Level.content` + UI de quiz) — el bloqueador real para que el contenido de Fase 7 sea jugable.
+- Contenido gamificado de los capítulos 2–8 (mismo patrón que el Capítulo 1).
 - Tutor IA (orquestación real sobre el contrato definido en Fase 4).
 - Economía de cosméticos avanzada.
 - Internacionalización completa de contenido (Next-Intl ya arquitectado).
-- Cobertura de los 8 capítulos de Tanenbaum con simuladores de profundidad equivalente.
+- Cobertura de los 8 capítulos de Tanenbaum con simuladores de profundidad equivalente (más allá de VLSM).

@@ -8,6 +8,6 @@
     "declaration": true,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["src/**/*.ts", "generated/**/*.ts"],
+  "include": ["src/**/*.ts", "generated/**/*.ts", "content/**/*.ts", "prisma/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -2,7 +2,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { config as loadEnv } from "dotenv";
-import { PrismaClient } from "../generated/prisma/client.js";
+import { CHAPTER_01_INTRODUCCION } from "../content/chapter-01-introduccion.js";
+import type { ChapterContent } from "../content/types.js";
+import { Prisma, PrismaClient } from "../generated/prisma/client.js";
 
 // Self-contido: puede ejecutarse tanto vía `prisma migrate dev` (que ya
 // cargó .env desde prisma.config.ts) como directamente con `tsx prisma/seed.ts`.
@@ -81,6 +83,90 @@ const VLSM_EXERCISE = {
   ],
 };
 
+/**
+ * Siembra un capítulo de contenido gamificado completo: un Level por
+ * sub-tema (con su lectura en `content` + su mini-quiz como Assessment) más
+ * un Level final para el Boss Battle. `Assessment` no tiene una unique
+ * constraint natural (a diferencia de Level, que sí la tiene en
+ * `[chapterId, order]`), así que se resuelve con find-then-branch — mismo
+ * patrón que ya usa este archivo para Lab más abajo.
+ */
+async function seedChapterContent(
+  tx: Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0],
+  chapterId: string,
+  chapterContent: ChapterContent,
+): Promise<void> {
+  async function upsertQuizAssessment(
+    levelId: string,
+    data: { title: string; questions: Prisma.InputJsonValue; passingScore: number; maxXp: number },
+  ): Promise<void> {
+    const existing = await tx.assessment.findFirst({ where: { levelId, type: "QUIZ" } });
+    if (existing) {
+      await tx.assessment.update({ where: { id: existing.id }, data });
+    } else {
+      await tx.assessment.create({ data: { levelId, type: "QUIZ", ...data } });
+    }
+  }
+
+  for (const levelContent of chapterContent.levels) {
+    const readingContent = {
+      sections: levelContent.sections,
+      realWorldApplication: levelContent.realWorldApplication,
+    } as unknown as Prisma.InputJsonValue;
+
+    const level = await tx.level.upsert({
+      where: { chapterId_order: { chapterId, order: levelContent.order } },
+      update: {
+        title: levelContent.title,
+        description: levelContent.description,
+        xpReward: levelContent.xpReward,
+        content: readingContent,
+      },
+      create: {
+        chapterId,
+        order: levelContent.order,
+        title: levelContent.title,
+        description: levelContent.description,
+        xpReward: levelContent.xpReward,
+        content: readingContent,
+      },
+    });
+
+    await upsertQuizAssessment(level.id, {
+      title: `Mini-Quiz: ${levelContent.title}`,
+      questions: levelContent.miniQuiz as unknown as Prisma.InputJsonValue,
+      passingScore: 70,
+      maxXp: levelContent.xpReward,
+    });
+  }
+
+  const bossOrder = chapterContent.levels.length + 1;
+  const bossLevel = await tx.level.upsert({
+    where: { chapterId_order: { chapterId, order: bossOrder } },
+    update: {
+      title: chapterContent.bossBattle.title,
+      description: chapterContent.bossBattle.description,
+      xpReward: chapterContent.bossBattle.maxXp,
+      content: Prisma.DbNull,
+    },
+    create: {
+      chapterId,
+      order: bossOrder,
+      title: chapterContent.bossBattle.title,
+      description: chapterContent.bossBattle.description,
+      xpReward: chapterContent.bossBattle.maxXp,
+      content: Prisma.DbNull,
+    },
+  });
+
+  await upsertQuizAssessment(bossLevel.id, {
+    title: chapterContent.bossBattle.title,
+    questions: chapterContent.bossBattle.questions as unknown as Prisma.InputJsonValue,
+    passingScore: chapterContent.bossBattle.passingScore,
+    maxXp: chapterContent.bossBattle.maxXp,
+  });
+}
+
 async function main(): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const course = await tx.course.upsert({
@@ -96,6 +182,7 @@ async function main(): Promise<void> {
     });
 
     let networkChapterId: string | null = null;
+    let introChapterId: string | null = null;
 
     for (const chapter of TANENBAUM_CHAPTERS) {
       const upserted = await tx.chapter.upsert({
@@ -116,11 +203,19 @@ async function main(): Promise<void> {
       if (chapter.tanenbaumChapter === 5) {
         networkChapterId = upserted.id;
       }
+      if (chapter.tanenbaumChapter === 1) {
+        introChapterId = upserted.id;
+      }
     }
 
     if (!networkChapterId) {
       throw new Error("No se encontró el capítulo de Capa de Red recién sembrado");
     }
+    if (!introChapterId) {
+      throw new Error("No se encontró el capítulo de Introducción recién sembrado");
+    }
+
+    await seedChapterContent(tx, introChapterId, CHAPTER_01_INTRODUCCION);
 
     const level = await tx.level.upsert({
       where: { chapterId_order: { chapterId: networkChapterId, order: 1 } },
@@ -167,7 +262,9 @@ async function main(): Promise<void> {
 
 main()
   .then(async () => {
-    console.log("Seed completado: curso base + 8 capítulos de Tanenbaum + laboratorio VLSM.");
+    console.log(
+      "Seed completado: curso base + 8 capítulos de Tanenbaum + laboratorio VLSM + contenido gamificado del Capítulo 1.",
+    );
     await prisma.$disconnect();
   })
   .catch(async (error: unknown) => {

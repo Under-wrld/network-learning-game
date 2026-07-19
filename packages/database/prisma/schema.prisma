@@ -149,6 +149,11 @@ model Chapter {
   @@map("chapters")
 }
 
+/// `content` guarda el material de lectura estructurado (secciones de teoría +
+/// aplicación en el mundo real) que el frontend renderiza antes del/los
+/// lab(s)/assessment(s) del nivel — ver packages/database/content/types.ts
+/// para la forma exacta. Nullable: niveles puramente prácticos (p. ej. un lab
+/// sin teoría propia) pueden no tenerlo.
 model Level {
   id          String   @id @default(uuid()) @db.Uuid
   chapterId   String   @map("chapter_id") @db.Uuid
@@ -156,6 +161,7 @@ model Level {
   description String
   order       Int      @default(0)
   xpReward    Int      @default(0) @map("xp_reward")
+  content     Json?    @db.JsonB
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
