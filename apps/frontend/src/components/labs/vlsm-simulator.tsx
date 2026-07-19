@@ -62,9 +62,11 @@ export function VlsmSimulator({ labId, exercise, maxXp }: VlsmSimulatorProps) {
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <Card>
         <CardHeader>
-          <CardTitle>Red base: {exercise.baseNetwork}</CardTitle>
+          <CardTitle>
+            Red base: <span className="font-mono text-primary">{exercise.baseNetwork}</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           {exercise.requirements.map((requirement) => {
             const fieldError = liveValidation?.errors.find((e) => e.requirementId === requirement.id);
             return (
@@ -75,6 +77,7 @@ export function VlsmSimulator({ labId, exercise, maxXp }: VlsmSimulatorProps) {
                 <Input
                   id={requirement.id}
                   placeholder="p. ej. 192.168.1.0/25"
+                  className="font-mono"
                   value={allocations[requirement.id] ?? ""}
                   onChange={(event) => setAllocation(requirement.id, event.target.value)}
                   aria-invalid={Boolean(fieldError)}
@@ -84,7 +87,7 @@ export function VlsmSimulator({ labId, exercise, maxXp }: VlsmSimulatorProps) {
             );
           })}
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-3 pt-2">
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? "Validando..." : "Enviar"}
             </Button>
@@ -102,18 +105,18 @@ export function VlsmSimulator({ labId, exercise, maxXp }: VlsmSimulatorProps) {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        <Card>
+      <div className="space-y-5">
+        <Card className="bg-xp/8">
           <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground">Recompensa</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Recompensa</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge className="bg-xp px-2.5 py-1 text-sm text-xp-foreground">{maxXp} XP</Badge>
+            <Badge className="bg-xp px-3 py-1 text-sm text-xp-foreground">{maxXp} XP</Badge>
           </CardContent>
         </Card>
 
         {result && (
-          <Alert data-testid="lab-result" variant={result.status === "PASSED" ? "default" : "destructive"}>
+          <Alert data-testid="lab-result" variant={result.status === "PASSED" ? "default" : "destructive"} className="shadow-soft">
             {result.status === "PASSED" ? (
               <CheckCircle2 className="size-4 text-success" />
             ) : (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Network } from "lucide-react";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/auth/google-button";
+import { FadeIn } from "@/components/motion/reveal";
 import { createClient } from "@/lib/supabase/client";
 
 const LoginSchema = z.object({
@@ -52,50 +54,58 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Iniciar sesión</CardTitle>
-          <CardDescription>Continuá tu progreso en Redes de Computadoras I</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" autoComplete="email" {...register("email")} />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+    <div className="mesh-glow flex min-h-screen flex-col items-center justify-center bg-background p-4">
+      <FadeIn className="flex w-full max-w-sm flex-col items-center">
+        <Link href="/" className="mb-8 flex items-center gap-2 font-heading text-base font-semibold tracking-tight">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Network className="size-4" />
+          </span>
+          Redes I
+        </Link>
+        <Card className="w-full shadow-elevated">
+          <CardHeader>
+            <CardTitle className="text-xl">Iniciar sesión</CardTitle>
+            <CardDescription>Continuá tu progreso en Redes de Computadoras I</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" autoComplete="email" {...register("email")} />
+                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input id="password" type="password" autoComplete="current-password" {...register("password")} />
+                {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+              </div>
+              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                {isSubmitting ? "Ingresando..." : "Ingresar"}
+              </Button>
+            </form>
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">o continuá con</span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input id="password" type="password" autoComplete="current-password" {...register("password")} />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-            </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Ingresando..." : "Ingresar"}
-            </Button>
-          </form>
-          <div className="relative py-1">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">o continuá con</span>
-            </div>
-          </div>
-          <GoogleButton redirectTo={redirectTo} />
-          <p className="text-center text-sm text-muted-foreground">
-            ¿No tenés cuenta?{" "}
-            <Link href="/register" className="font-medium text-primary underline-offset-4 hover:underline">
-              Registrate
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+            <GoogleButton redirectTo={redirectTo} />
+            <p className="text-center text-sm text-muted-foreground">
+              ¿No tenés cuenta?{" "}
+              <Link href="/register" className="font-medium text-primary underline-offset-4 hover:underline">
+                Registrate
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </FadeIn>
     </div>
   );
 }

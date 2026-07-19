@@ -32,14 +32,14 @@ export function EnrollButton({ courseSlug }: EnrollButtonProps) {
 
   if (isEnrolled) {
     return (
-      <Button disabled variant="secondary">
+      <Button disabled variant="secondary" size="lg">
         Ya estás inscrito
       </Button>
     );
   }
 
   return (
-    <Button onClick={handleEnroll} disabled={isSubmitting}>
+    <Button onClick={handleEnroll} disabled={isSubmitting} size="lg">
       {isSubmitting ? "Inscribiendo..." : "Inscribirme"}
     </Button>
   );
