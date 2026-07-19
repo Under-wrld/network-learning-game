@@ -11,6 +11,14 @@ packages:
 # Requerido por `pnpm deploy` (usado en los Dockerfiles) para empaquetar
 # dependencias workspace:* como archivos reales en vez de symlinks.
 injectWorkspacePackages: true
+# pnpm 11 gestiona su propio binario como "packageManagerDependency" cuando
+# devEngines.packageManager.onFail = "download" está presente, escribiendo
+# un segundo documento YAML en pnpm-lock.yaml. El pnpm que usa el build de
+# Vercel no soporta ese lockfile multi-documento (`expected a single
+# document in the stream, but found more`) — deshabilitado, no lo
+# necesitamos (Vercel/CI/Docker ya resuelven pnpm por su cuenta vía
+# packageManager/corepack). Ver DECISIONS.md.
+managePackageManagerVersions: false
 allowBuilds:
   '@prisma/engines': true
   esbuild: true
