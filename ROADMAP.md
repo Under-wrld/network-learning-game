@@ -59,7 +59,7 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] Build/typecheck en verde en los 6 paquetes del monorepo vía Turborepo; smoke test real con el dev server (rutas públicas 200, `/dashboard` sin sesión redirige a `/login?redirectTo=...`).
 - [x] Smoke test completo en navegador con el backend real (signup → dashboard → lab) — corrido vía el E2E de Playwright (Fase 6), login real de punta a punta.
 
-## Fase 6 — QA, E2E y despliegue en contenedores *(en curso)*
+## Fase 6 — QA, E2E y despliegue en contenedores *(completa)*
 - [x] Playwright configurado (`apps/e2e`), con auto-arranque de backend+frontend vía `webServer`. Golden path completo escrito: login → dashboard → catálogo → inscripción → laboratorio VLSM → XP, más un caso de asignación incorrecta. Usa la Admin API de Supabase para crear un usuario ya confirmado (evita depender de email real).
 - [x] `apps/backend/src/health` — endpoint `GET /health`, usado por Docker healthchecks y por Playwright para esperar a que el server esté listo.
 - [x] Dockerfiles multi-stage para `backend` (`pnpm deploy --prod`, imagen `node:24-alpine`) y `frontend` (Next.js `output: "standalone"`) — **construidos y corridos de verdad** con `docker build`/`docker run`, no solo escritos: el backend levantó todas las rutas y respondió `/health`; el frontend sirvió `/` y `/login` con `curl`.
@@ -67,7 +67,11 @@ Roadmap iterativo del MVP, organizado según el protocolo "Stop & Ask" de [CLAUD
 - [x] `.github/workflows/ci-cd.yml` reescrito y **verde de punta a punta en un run real** (`validate`: typecheck/lint/test/build; `docker`: ambas imágenes). Los primeros 5 runs fallaron en cadena por bugs reales distintos, cada uno diagnosticado contra el log real del run (se instaló y autenticó `gh` CLI específicamente para esto) y corregido: `packages/database/generated/` nunca se regeneraba en un checkout limpio (falta de `postinstall`), Turborepo filtraba los secrets antes de que llegaran a los tasks (`envMode: "strict"`, sin `globalPassThroughEnv`), y el secret `NEXT_PUBLIC_SUPABASE_URL` de GitHub tenía el mismo sufijo `/rest/v1/` incorrecto que ya se había corregido en el `.env` local. Ver `DECISIONS.md` para el detalle de cada uno.
 - [x] `pnpm test` y `pnpm test:e2e` separados como tasks de Turborepo distintos — evita que un fallo en E2E mate procesos de Vitest a mitad de corrida (nos dejó 5 usuarios de prueba sin limpiar una vez; ver `DECISIONS.md`).
 - [x] `pnpm test:e2e` corrido de verdad: golden path completo en verde (login real → dashboard → inscripción → laboratorio VLSM → XP), más el caso de asignación incorrecta. En el camino se corrigieron 3 bugs reales expuestos únicamente por el E2E real: verificación JWT ES256/JWKS, una carrera de concurrencia en el upsert de usuario nuevo, y locators de Playwright ambiguos (ver `DECISIONS.md`).
-- [ ] Deploy real a Vercel (frontend) y Railway (backend).
+- [x] Deploy real a Vercel (frontend) y Railway (backend) — ambos en producción y verificados con tráfico real, no solo builds:
+  - Backend: `https://network-learning-game-production.up.railway.app` (`/health` 200, `/courses` con datos reales del seed).
+  - Frontend: `https://network-learning-game.vercel.app` (`/` y `/login` 200, `/dashboard` redirige sin sesión).
+  - Smoke test real de punta a punta contra la infra desplegada: login real vía Supabase → `GET /auth/me` contra el backend de Railway → 200 con el perfil sincronizado — la misma cadena que rompía antes del fix de JWKS, ahora confirmada en producción, no solo en CI/local.
+  - En el camino se encontraron y corrigieron 3 bugs reales más de plataforma (ninguno visible en CI/Docker/local): Railway necesita una variable `PORT` explícita para el healthcheck aunque la app nunca la lee; Vercel necesita `rootDirectory` + `.vercelignore` para monorepos pnpm; `pnpm-lock.yaml` tenía un bug real de doble-documento YAML (pnpm 11 auto-gestionando su propio binario) que el pnpm del build de Vercel no toleraba. Ver `DECISIONS.md`.
 - [x] Push a `origin/main`.
 
 ## Backlog post-MVP
