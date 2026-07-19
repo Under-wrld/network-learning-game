@@ -14,9 +14,13 @@ COPY apps/frontend/scripts apps/frontend/scripts
 COPY apps/backend/package.json apps/backend/package.json
 COPY apps/e2e/package.json apps/e2e/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/database/prisma packages/database/prisma
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/simulations/package.json packages/simulations/package.json
 
+# El postinstall de packages/database corre `prisma generate`, que solo
+# necesita el schema (ya copiado arriba) — packages/database/package.json
+# está en el grafo de workspace aunque el frontend no lo importe directo.
 RUN pnpm install --frozen-lockfile
 
 COPY packages/shared packages/shared

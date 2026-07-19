@@ -14,9 +14,12 @@ COPY apps/frontend/package.json apps/frontend/package.json
 COPY apps/frontend/scripts apps/frontend/scripts
 COPY apps/e2e/package.json apps/e2e/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/database/prisma packages/database/prisma
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/simulations/package.json packages/simulations/package.json
 
+# El postinstall de packages/database corre `prisma generate`, que solo
+# necesita el schema (ya copiado arriba), no el resto del código fuente.
 RUN pnpm install --frozen-lockfile
 
 COPY packages/database packages/database
@@ -25,13 +28,18 @@ COPY packages/simulations packages/simulations
 COPY apps/backend apps/backend
 COPY tsconfig.json tsconfig.json
 
-RUN pnpm --filter @network-learning-game/database run db:generate
 RUN pnpm --filter @network-learning-game/database run build
 RUN pnpm --filter @network-learning-game/shared run build
 RUN pnpm --filter @network-learning-game/simulations run build
 RUN pnpm --filter backend run build
 
-RUN pnpm --filter backend deploy --prod /deploy
+# --ignore-scripts: para acá, packages/database ya está compilado y con el
+# cliente de Prisma generado (pasos anteriores) — el deploy solo necesita
+# copiar los "files" declarados de cada package.json y enlazar node_modules
+# de producción, no volver a correr postinstall/prisma generate. Sin este
+# flag, pnpm 11 aborta el deploy con ERR_PNPM_IGNORED_BUILDS al intentar
+# re-aprobar ese script dentro del store aislado de /deploy.
+RUN pnpm --filter backend deploy --prod --ignore-scripts /deploy
 
 # ---------------------------------------------------------------------------
 FROM node:24-alpine AS runner
